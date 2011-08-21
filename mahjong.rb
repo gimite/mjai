@@ -219,6 +219,7 @@ class Action < Serializable
     
     define_fields([
       [:type, :symbol],
+      [:reason, :symbol],
       [:actor, :player],
       [:target, :player],
       [:pai, :pai],
@@ -554,7 +555,7 @@ class Board
     
     def process_ryukyoku()
       # TODO 点数計算
-      do_action(Action.new({:type => :ryukyoku}))
+      do_action(Action.new({:type => :ryukyoku, :reason => :fanpai}))
     end
     
     def game_finished?
@@ -598,64 +599,112 @@ class ShantenCounter
       :single => :single,
     }
     
-    MENTSU_COSTS = {
-      :complete => 0,
-      :toitsu => 1,
-      :tatsu => 1,
-      :single => 2,
+    MENTSU_SIZES = {
+      :complete => 3,
+      :toitsu => 2,
+      :tatsu => 2,
+      :single => 1,
     }
     
-    def self.count(pais)
-      pai_set = Hash.new(0)
-      for pai in pais
-        pai_set[pai.remove_red()] += 1
+    def initialize(pais)
+      @pais = pais
+      raise(ArgumentError, "invalid number of pais") if @pais.size % 3 == 0
+      @pai_set = Hash.new(0)
+      for pai in @pais
+        @pai_set[pai.remove_red()] += 1
       end
-      return count_recurse(pai_set, [], {})
+      @cache = {}
+      # TODO handle case where shanten of chitoi and normal is the same
+      (@shanten, @combinations) =
+          [count_recurse(@pai_set, []), count_chitoi(@pai_set)].min_by(){ |s, c| s }
     end
     
-    def self.count_recurse(pai_set, mentsus, cache)
-      key = [pai_set, mentsus.sort()]
-      if !cache[key]
+    attr_reader(:shanten, :combinations)
+    
+    def waited_pais
+      raise(ArgumentError, "invalid number of pais") if @pais.size % 3 != 1
+      raise("not tenpai") if @shanten != 0
+      result = []
+      for mentsus in @combinations
+        if mentsus == :chitoitsu
+          result.push(@pai_set.find(){ |pai, n| n == 1 }[0])
+        else
+          case mentsus.select(){ |t, ps| t == :toitsu }.size
+            when 0  # 単騎
+              (type, pais) = mentsus.find(){ |t, ps| t == :single }
+              result.push(pais[0])
+            when 1  # 両面、辺張、嵌張
+              (type, pais) = mentsus.find(){ |t, ps| [:ryanpen, :kanta].include?(t) }
+              relative_numbers = type == :ryanpen ? [-1, 2] : [1]
+              result += relative_numbers.map(){ |r| pais[0].number + r }.
+                  select(){ |n| (1..9).include?(n) }.
+                  map(){ |n| Pai.new(pais[0].type, n) }
+            when 2  # 双碰
+              result += mentsus.select(){ |t, ps| t == :toitsu }.map(){ |t, ps| ps[0] }
+            else
+              raise("should not happen")
+          end
+        end
+      end
+      return result.sort().uniq()
+    end
+    
+    def count_chitoi(pai_set)
+      num_toitsus = pai_set.select(){ |pai, n| n >= 2 }.size
+      return [-1 + [7 - num_toitsus, 0].max, [:chitoitsu]]
+    end
+    
+    def count_recurse(pai_set, mentsus)
+      key = get_key(pai_set, mentsus)
+      if !@cache[key]
         if pai_set.empty?
           # TODO support kokushi
           #p mentsus
-          chitoi_shanten = -1 + [(7 - mentsus.select(){ |m| m == :toitsu }.size), 0].max
-          mentsus = mentsus.dup()
-          if index = mentsus.index(:toitsu)
-            mentsus.delete_at(index)
-            normal_shanten = -1
-          elsif index = mentsus.index(:single)
-            mentsus.delete_at(index)
-            normal_shanten = 0
+          mentsu_categories = mentsus.map(){ |t, ps| MENTSU_CATEGORIES[t] }
+          if index = mentsu_categories.index(:toitsu)
+            mentsu_categories.delete_at(index)
+            min_shanten = -1
+          elsif index = mentsu_categories.index(:single)
+            mentsu_categories.delete_at(index)
+            min_shanten = 0
           else
-            return 1.0/0.0
+            return [1.0/0.0, nil]
           end
-          costs = mentsus.map(){ |m| MENTSU_COSTS[m] }.sort()
-          normal_shanten += costs[0...4].inject(0, :+)
-          min_shanten = [normal_shanten, chitoi_shanten].min
-          #p min_shanten
+          sizes = mentsu_categories.map(){ |m| MENTSU_SIZES[m] }.sort_by(){ |n| -n }
+          num_required_mentsus = @pais.size / 3
+          min_shanten += sizes[0...num_required_mentsus].inject(0){ |r, n| r + (3 - n) }
+          min_combinations = [mentsus]
         else
           min_shanten = 1.0/0.0
           first_pai = pai_set.keys.sort()[0]
           for type in MENTSU_TYPES
-            remains_set = remove(pai_set, type, first_pai)
+            (removed_pais, remains_set) = remove(pai_set, type, first_pai)
             if remains_set
-              shanten = count_recurse(remains_set, mentsus + [MENTSU_CATEGORIES[type]], cache)
-              min_shanten = [min_shanten, shanten].min
+              (shanten, combinations) =
+                  count_recurse(remains_set, mentsus + [[type, removed_pais]])
+              if shanten < min_shanten
+                min_shanten = shanten
+                min_combinations = combinations
+              elsif shanten == min_shanten && shanten < 1.0/0.0
+                min_combinations += combinations
+              end
             end
           end
         end
-        cache[key] = min_shanten
+        @cache[key] = [min_shanten, min_combinations]
       end
-      return cache[key]
+      return @cache[key]
     end
     
-    def self.remove(pai_set, type, first_pai)
+    def get_key(pai_set, mentsus)
+      return [pai_set, mentsus.sort()]
+    end
+    
+    def remove(pai_set, type, first_pai)
       case type
         when :kotsu
           removed_pais = [first_pai] * 3
         when :shuntsu
-          return if first_pai.type == "t"
           removed_pais = shuntsu_piece(first_pai, [0, 1, 2])
         when :toitsu
           removed_pais = [first_pai] * 2
@@ -668,20 +717,20 @@ class ShantenCounter
         else
           raise("should not happen")
       end
-      return nil if !removed_pais
+      return [nil, nil] if !removed_pais
       result_set = pai_set.dup()
       for pai in removed_pais
         if result_set[pai] > 0
           result_set[pai] -= 1
           result_set.delete(pai) if result_set[pai] == 0
         else
-          return nil
+          return [nil, nil]
         end
       end
-      return result_set
+      return [removed_pais, result_set]
     end
     
-    def self.shuntsu_piece(first_pai, relative_numbers)
+    def shuntsu_piece(first_pai, relative_numbers)
       if first_pai.type == "t"
         return nil
       else

@@ -32,12 +32,12 @@ class TenhouMjlogLoader
         
     end
     
+    # http://p.tenhou.net/img/mentsu136.txt
     class FuroParser
         
         include(Util)
         
         def initialize(fid)
-          p fid
           @num = fid
           @target_dir = read_bits(2)
           if read_bits(1) == 1
@@ -215,7 +215,18 @@ class TenhouMjlogLoader
             })
             do_action({:type => :end_kyoku})
           when "RYUUKYOKU"
-            do_action({:type => :ryukyoku})
+            reason_map = {
+              "yao9" => :kyushukyuhai,
+              "kaze4" => :sufonrenta,
+              "reach4" => :suchareach,
+              "ron3" => :sanchaho,
+              "nm" => :nagashimangan,
+              nil => :fanpai,
+            }
+            reason = reason_map[elem["type"]]
+            raise("unknown reason") if !reason
+            # TODO add actor for some reasons
+            do_action({:type => :ryukyoku, :reason => reason})
             do_action({:type => :end_kyoku})
           when "N"
             actor = @board.players[elem["who"].to_i()]
