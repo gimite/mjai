@@ -129,6 +129,10 @@ class Furo
       @params = params
     end
     
+    def pais
+      return (self.taken ? [self.taken] : []) + self.consumed
+    end
+    
     def to_s()
       if self.type == :ankan
         return '[# %s %s #]' % self.consumed[0, 2]
@@ -202,7 +206,7 @@ class Serializable
             plain = obj.id
           when :pais
             plain = obj.map(){ |a| a.to_s() }
-          when :number, :string
+          when :number, :string, :strings
             plain = obj
           else
             raise("unknown type")
@@ -227,6 +231,8 @@ class Action < Serializable
       [:pais, :pais],
       [:id, :number],
       [:oya, :player],
+      [:names, :strings],
+      [:dora, :pai],
     ])
     
 end
@@ -239,19 +245,23 @@ class Player
     end
     
     attr_reader(:id)
+    attr_reader(:name)
     attr_reader(:tehais)  # 手牌
     attr_reader(:furos)  # 副露
-    attr_reader(:ho)  # 河
+    attr_reader(:ho)  # 河 (鳴かれた牌を含まない)
+    attr_reader(:sutehais)  # 捨牌 (鳴かれた牌を含む)
     attr_accessor(:board)
     
     def process_action(action)
       case action.type
         when :start_game
           @id = action.id
+          @name = action.names[@id]
         when :start_kyoku
           @tehais = []
           @furos = []
           @ho = []
+          @sutehais = []
         when :haipai
           if action.actor == self
             @tehais = action.pais.sort()
@@ -265,6 +275,7 @@ class Player
             delete_tehai(action.pai)
             @tehais.sort!()
             @ho.push(action.pai)
+            @sutehais.push(action.pai)
           end
         when :chi, :pon, :daiminkan, :ankan
           if action.actor == self
@@ -448,7 +459,13 @@ class Board
     
     attr_reader(:players)
     attr_accessor(:game_type)
+    attr_reader(:all_pais)
+    attr_reader(:doras)
     attr_accessor(:last) # kari
+    
+    def on_action(&block)
+      @on_action = block
+    end
     
     def play_game()
       do_action(Action.new({:type => :start_game}))
@@ -462,10 +479,7 @@ class Board
     def play_kyoku()
       $stderr.puts("play_kyoku")
       catch(:end_kyoku) do
-        @pipais = (
-            ["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n) } }.flatten() +
-            (1..7).map(){ |n| Pai.new("t", n) }
-        ) * 4
+        @pipais = @all_pais.shuffle()
         @pipais.shuffle!()
         @wanpais = @pipais.pop(14)
         do_action(Action.new({:type => :start_kyoku, :oya => @oya}))
@@ -513,8 +527,22 @@ class Board
     def do_action(action)
       
       puts action.to_json()
-      
       @actor = action.actor if action.actor
+      
+      case action.type
+        when :start_game
+          # TODO change this by red config
+          pais = (0...4).map() do |i|
+            ["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n, n == 5 && i == 0) } } +
+                (1..7).map(){ |n| Pai.new("t", n) }
+          end
+          @all_pais = pais.flatten().sort()
+        when :start_kyoku
+          @doras = [action.dora]
+        when :dora
+          @doras.push(action.pai)
+      end
+      
       actions = (0...4).map(){ |i| action_in_view(action, i) }
       for i in 0...4
         @players[i].process_action(actions[i])
@@ -522,6 +550,7 @@ class Board
       
       #p Action.from_json(action.to_json(), self)
       dump()
+      @on_action.call(action) if @on_action
       
       responses = (0...4).map(){ |i| @players[i].respond_to_action(actions[i]) }
       
@@ -541,7 +570,7 @@ class Board
       player = @players[player_id]
       case action.type
         when :start_game
-          return Action.new({:type => :start_game, :id => player_id})
+          return Action.new({:type => :start_game, :id => player_id, :names => action.names})
         when :haipai
           pais = action.actor == player ? action.pais : [Pai::UNKNOWN] * action.pais.size
           return Action.new({:type => :haipai, :actor => action.actor, :pais => pais})
@@ -570,6 +599,7 @@ class Board
     
     def dump()
       puts("pipai: %d" % @pipais.size) if @pipais
+      puts("dora: %s" % @doras.join(" ")) if @doras
       @players.each_with_index() do |player, i|
         if player.tehais
           puts("%s[%d] tehai: %s %s" %
@@ -655,6 +685,7 @@ class ShantenCounter
     end
     
     def count_recurse(pai_set, mentsus)
+      # TODO 上がり牌を全部自分が持っているケースを考慮
       key = get_key(pai_set, mentsus)
       if !@cache[key]
         if pai_set.empty?

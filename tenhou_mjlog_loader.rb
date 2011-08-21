@@ -1,4 +1,5 @@
 require "zlib"
+require "uri"
 require "nokogiri"
 require "with_progress"
 require "./mahjong"
@@ -168,27 +169,36 @@ class TenhouMjlogLoader
     
     def initialize(path)
       Zlib::GzipReader.open(path) do |f|
-        @xml = f.read()
+        @xml = f.read().force_encoding("utf-8")
       end
     end
+    
+    attr_reader(:board)
     
     def dump_xml()
       puts(@xml)
     end
     
-    def play()
+    def play(&block)
       @board = Board.new((0...4).map(){ PuppetPlayer.new() })
+      @board.on_action(&block)
       @doc = Nokogiri.XML(@xml)
       for elem in @doc.root.children
         puts(elem)
         case elem.name
-          when "SHUFFLE", "GO", "UN", "BYE"
+          when "SHUFFLE", "GO", "BYE"
             # BYE: log out
+          when "UN"
+            @names = (0...4).map(){ |i| URI.decode(elem["n%d" % i]) }
           when "TAIKYOKU"
-            do_action({:type => :start_game})
+            do_action({:type => :start_game, :names => @names})
           when "INIT"
             oya = elem["oya"].to_i()
-            do_action({:type => :start_kyoku, :oya => @board.players[oya]})
+            do_action({
+              :type => :start_kyoku,
+              :oya => @board.players[oya],
+              :dora => pid_to_pai(elem["seed"].split(/,/)[5]),
+            })
             for i in 0...4
               player_id = (oya + i) % 4
               pais = elem["hai%d" % player_id].split(/,/).map(){ |s| pid_to_pai(s) }
