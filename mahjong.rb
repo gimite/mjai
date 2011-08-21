@@ -30,7 +30,7 @@ class Pai
     end
     
     def self.dump_pais(pais)
-      return pais.map(){ |pai| "%-2s" % pai }.join(" ")
+      return pais.map(){ |pai| "%-3s" % pai }.join("")
     end
     
     def initialize(*args)
@@ -80,7 +80,7 @@ class Pai
     end
     
     def data
-      return [@type, @number, @red]
+      return [@type, @number, @red ? 1 : 0]
     end
     
     def ==(other)
@@ -103,6 +103,10 @@ class Pai
     
     def remove_red()
       return Pai.new(@type, @number)
+    end
+    
+    def same_symbol?(other)
+      return remove_red() == other.remove_red()
     end
     
     UNKNOWN = Pai.new(nil, nil)
@@ -141,49 +145,88 @@ end
 #p pais.map(){ |h| [h.type, h.number, h.red?] }
 
 
-class Action
+class Serializable
     
-    PARAM_NAMES = [:type, :actor, :target, :pai, :consumed, :pais, :id]
+    def self.define_fields(specs)
+      @@field_specs = specs
+      @@field_specs.each() do |name, type|
+        define_method(name) do
+          return @fields[name]
+        end
+      end
+    end
     
     def self.from_json(json, board)
       hash = JSON.parse(json)
-      params = {}
-      params[:type] = hash["type"].intern()
-      params[:actor] = board.players[hash["actor"]] if hash["actor"]
-      params[:target] = board.players[hash["target"]] if hash["target"]
-      params[:pai] = Pai.new(hash["pai"]) if hash["pai"]
-      params[:consumed] = hash["consumed"].map(){ |s| Pai.new(s) } if hash["consumed"]
-      params[:pais] = hash["pais"].map(){ |s| Pai.new(s) } if hash["pais"]
-      params[:id] = hash["id"] if hash["id"]
-      return new(params)
-    end
-    
-    PARAM_NAMES.each() do |name|
-      define_method(name) do
-        return @params[name]
+      fields = {}
+      for name, type in @@field_specs
+        plain = hash[name.to_s()]
+        next if !plain
+        case type
+          when :symbol
+            obj = plain.intern()
+          when :player
+            obj = board.players[plain]
+          when :pai
+            obj = Pai.new(plain)
+          when :pais
+            obj = plain.map(){ |s| Pai.new(s) }
+          when :number, :string
+            obj = plain
+          else
+            raise("unknown type")
+        end
+        fields[name] = obj
       end
+      return new(fields)
     end
     
-    def initialize(params)
-      for k, v in params
-        if !PARAM_NAMES.include?(k)
-          raise(ArgumentError, "unknown param: %p" % k)
+    def initialize(fields)
+      for k, v in fields
+        if !@@field_specs.any?(){ |n, t| n == k }
+          raise(ArgumentError, "unknown field: %p" % k)
         end
       end
-      @params = params
+      @fields = fields
     end
     
     def to_json()
       hash = {}
-      hash["type"] = self.type.to_s()
-      hash["actor"] = self.actor.id if self.actor
-      hash["target"] = self.target.id if self.target
-      hash["pai"] = self.pai.to_s() if self.pai
-      hash["consumed"] = self.consumed.map(){ |a| a.to_s() } if self.consumed
-      hash["pais"] = self.pais.map(){ |a| a.to_s() } if self.pais
-      hash["id"] = self.id if self.id
+      for name, type in @@field_specs
+        obj = @fields[name]
+        next if !obj
+        case type
+          when :symbol, :pai
+            plain = obj.to_s()
+          when :player
+            plain = obj.id
+          when :pais
+            plain = obj.map(){ |a| a.to_s() }
+          when :number, :string
+            plain = obj
+          else
+            raise("unknown type")
+        end
+        hash[name.to_s()] = plain
+      end
       return JSON.dump(hash)
     end
+    
+end
+
+
+class Action < Serializable
+    
+    define_fields([
+      [:type, :symbol],
+      [:actor, :player],
+      [:target, :player],
+      [:pai, :pai],
+      [:consumed, :pais],
+      [:pais, :pais],
+      [:id, :number],
+      [:oya, :player],
+    ])
     
 end
 
@@ -240,7 +283,7 @@ class Player
         when :kakan
           if action.actor == self
             delete_tehai(action.pai)
-            pon_index = @furos.index(){ |f| f.type == :pon && f.taken == action.pai }
+            pon_index = @furos.index(){ |f| f.type == :pon && f.taken.same_symbol?(action.pai) }
             raise("should not happen") if !pon_index
             @furos[pon_index] = Furo.new({
               :type => :kakan,
@@ -269,6 +312,15 @@ class Player
 end
 
 
+class PuppetPlayer < Player
+    
+    def respond_to_action(action)
+      return nil
+    end
+    
+end
+
+
 class TsumogiriPlayer < Player
     
     def respond_to_action(action)
@@ -292,6 +344,10 @@ class ShantenPlayer < Player
         when :tsumo, :chi, :pon
           if action.actor == self
             if action.type == :tsumo
+              shanten = ShantenCounter.count(self.tehais)
+              if shanten == -1
+                return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
+              end
               for pai in self.tehais
                 if self.tehais.select(){ |tp| tp == pai }.size >= 4
                   #@board.last = true
@@ -304,10 +360,6 @@ class ShantenPlayer < Player
                 return create_action(
                     {:type => :kakan, :pai => action.pai, :consumed => [action.pai] * 3})
               end
-            end
-            shanten = ShantenCounter.count(self.tehais)
-            if shanten == -1
-              return create_action({:type => :hora, :target => action.actor})
             end
             sutehai = self.tehais[-1]
             (self.tehais.size - 1).downto(0) do |i|
@@ -325,7 +377,7 @@ class ShantenPlayer < Player
         when :dahai
           if action.actor != self
             if ShantenCounter.count(self.tehais + [action.pai]) == -1
-              return create_action({:type => :hora, :target => action.actor})
+              return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
             elsif self.tehais.select(){ |pai| pai == action.pai }.size >= 3
               #@board.last = true
               return create_action({
@@ -386,6 +438,7 @@ end
 class Board
     
     def initialize(players)
+      @game_type = :one_kyoku
       @players = players
       for player in @players
         player.board = self
@@ -393,14 +446,16 @@ class Board
     end
     
     attr_reader(:players)
+    attr_accessor(:game_type)
     attr_accessor(:last) # kari
     
     def play_game()
       do_action(Action.new({:type => :start_game}))
-      @dealer = @players[0]  # TODO fix this
+      @oya = @players[0]  # TODO fix this
       while !self.game_finished?
         play_kyoku()
       end
+      do_action(Action.new({:type => :end_game}))
     end
     
     def play_kyoku()
@@ -412,32 +467,58 @@ class Board
         ) * 4
         @pipais.shuffle!()
         @wanpais = @pipais.pop(14)
-        do_action(Action.new({:type => :start_kyoku}))
+        do_action(Action.new({:type => :start_kyoku, :oya => @oya}))
         for player in @players
           do_action(Action.new(
               {:type => :haipai, :actor => player, :pais => @pipais.pop(13) }))
         end
-        @actor = @dealer
+        @actor = @oya
         while !@pipais.empty?
-          action = Action.new({:type => :tsumo, :actor => @actor, :pai => @pipais.pop()})
-          while action
-            action = do_action(action)
-          end
+          mota()
           @actor = @players[(@actor.id + 1) % 4]
         end
         process_ryukyoku()
+      end
+      do_action(Action.new({:type => :end_kyoku}))
+    end
+    
+    # 摸打
+    def mota()
+      actions = [Action.new({:type => :tsumo, :actor => @actor, :pai => @pipais.pop()})]
+      while !actions.empty?
+        if actions[0].type == :hora
+          # TODO 点数計算
+          # actions.size >= 2 in case of double/triple ron
+          for action in actions
+            do_action(action)
+          end
+          throw(:end_kyoku)
+        else
+          raise("should not happen") if actions.size != 1
+          action = actions[0]
+          responses = do_action(action)
+          case action.type
+            when :daiminkan, :kakan, :ankan
+              actions =
+                [Action.new({:type => :tsumo, :actor => action.actor, :pai => @wanpais.pop()})]
+              # TODO 王牌の補充、ドラの追加
+              next
+          end
+          actions = choose_actions(responses)
+        end
       end
     end
     
     def do_action(action)
       
-      actions = (0...4).map(){ |i| action_in_view(action, i) }
+      puts action.to_json()
       
+      @actor = action.actor if action.actor
+      actions = (0...4).map(){ |i| action_in_view(action, i) }
       for i in 0...4
         @players[i].process_action(actions[i])
       end
       
-      puts action.to_json()
       #p Action.from_json(action.to_json(), self)
       dump()
       
@@ -446,27 +527,13 @@ class Board
       puts("-" * 80)
       #gets()
       
-      case action.type
-        when :hora
-          process_hora(action)
-          throw(:end_kyoku)
-        when :daiminkan, :kakan, :ankan
-          return Action.new({:type => :tsumo, :actor => action.actor, :pai => @wanpais.pop()})
-          # TODO 王牌の補充、ドラの追加
-      end
-      
-      id = choose_action(responses)
-      if id
-        @actor = @players[id]
-        return responses[id]
-      else
-        return nil
-      end
+      return responses
       
     end
     
-    def choose_action(actions)
-      return (0...4).find(){ |i| actions[i] }  # TODO fix this
+    def choose_actions(actions)
+      action = actions.find(){ |a| a }  # TODO fix this
+      return action ? [action] : []
     end
     
     def action_in_view(action, player_id)
@@ -485,16 +552,9 @@ class Board
       end
     end
     
-    def process_hora(action)
-      if action.actor == action.target
-        p :tsumo
-      else
-        p :ron
-      end
-    end
-    
     def process_ryukyoku()
-      p :ryukyoku
+      # TODO 点数計算
+      do_action(Action.new({:type => :ryukyoku}))
     end
     
     def game_finished?
@@ -502,7 +562,7 @@ class Board
       if @last
         return true
       else
-        @last = true
+        @last = true if @game_type == :one_kyoku
         return false
       end
     end
@@ -631,24 +691,6 @@ class ShantenCounter
     
 end
 
-def assert_equal(a, b)
-  if a != b
-    raise("%p != %p" % [a, b])
-  end
-end
-
-def shanten_counter_test()
-  assert_equal(ShantenCounter.count(Pai.parse_pais("123m456p789sNNNFF")), -1)
-  assert_equal(ShantenCounter.count(Pai.parse_pais("123m456p789sNNNFP")), 0)
-  assert_equal(ShantenCounter.count(Pai.parse_pais("12m456p789sNNNFFP")), 0)
-  assert_equal(ShantenCounter.count(Pai.parse_pais("12m45p789sNNNFFPC")), 1)
-  assert_equal(ShantenCounter.count(Pai.parse_pais("1112345678999mN")), 0)
-  assert_equal(ShantenCounter.count(Pai.parse_pais("114477m114477sCC")), -1)
-  assert_equal(ShantenCounter.count(Pai.parse_pais("114477m114477sPC")), 0)
-  assert_equal(ShantenCounter.count(Pai.parse_pais("114477m114477sP")), 0)
-  p :pass
-end
-
 def shanten_counter_benchmark()
   all_pais = (["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n) } }.flatten() +
       (1..7).map(){ |n| Pai.new("t", n) }) * 4
@@ -671,12 +713,3 @@ def shanten_counter_benchmark()
   end
   p Time.now.to_f - start_time
 end
-
-
-#shanten_counter_test()
-#shanten_counter_benchmark()
-
-#board = Board.new([PipePlayer.new("ruby1.9 tsumogiri_player.rb"),
-#    ShantenPlayer.new(), ShantenPlayer.new(), ShantenPlayer.new()])
-board = Board.new((0...4).map(){ ShantenPlayer.new() })
-board.play_game()
