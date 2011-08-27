@@ -250,9 +250,26 @@ class Player
     attr_reader(:furos)  # 副露
     attr_reader(:ho)  # 河 (鳴かれた牌を含まない)
     attr_reader(:sutehais)  # 捨牌 (鳴かれた牌を含む)
+    attr_reader(:extra_anpais)  # sutehais以外のこのプレーヤに対する安牌
     attr_accessor(:board)
     
+    def anpais
+      return @sutehais + @extra_anpais
+    end
+    
+    def reach?
+      return @reach
+    end
+    
     def process_action(action)
+      
+      if board.previous_action &&
+          board.previous_action.type == :dahai &&
+          board.previous_action.actor != self &&
+          action.type != :hora
+        @extra_anpais.push(board.previous_action.pai)
+      end
+      
       case action.type
         when :start_game
           @id = action.id
@@ -262,23 +279,23 @@ class Player
           @furos = []
           @ho = []
           @sutehais = []
-        when :haipai
-          if action.actor == self
+          @extra_anpais = []
+          @reach = false
+      end
+      
+      if action.actor == self
+        case action.type
+          when :haipai
             @tehais = action.pais.sort()
-          end
-        when :tsumo
-          if action.actor == self
+          when :tsumo
             @tehais.push(action.pai)
-          end
-        when :dahai
-          if action.actor == self
+          when :dahai
             delete_tehai(action.pai)
             @tehais.sort!()
             @ho.push(action.pai)
             @sutehais.push(action.pai)
-          end
-        when :chi, :pon, :daiminkan, :ankan
-          if action.actor == self
+            @extra_anpais.clear() if !@reach
+          when :chi, :pon, :daiminkan, :ankan
             for pai in action.consumed
               delete_tehai(pai)
             end
@@ -288,12 +305,7 @@ class Player
               :consumed => action.consumed,
               :target => action.target,
             }))
-          elsif action.target == self
-            pai = @ho.pop()
-            raise("should not happen") if pai != action.pai
-          end
-        when :kakan
-          if action.actor == self
+          when :kakan
             delete_tehai(action.pai)
             pon_index = @furos.index(){ |f| f.type == :pon && f.taken.same_symbol?(action.pai) }
             raise("should not happen") if !pon_index
@@ -303,8 +315,19 @@ class Player
               :consumed => @furos[pon_index].consumed + [action.pai],
               :target => @furos[pon_index].target,
             })
-          end
+          when :reach_accepted
+            @reach = true
+        end
       end
+      
+      if action.target == self
+        case action.type
+          when :chi, :pon, :daiminkan, :ankan
+            pai = @ho.pop()
+            raise("should not happen") if pai != action.pai
+        end
+      end
+      
     end
     
     def delete_tehai(pai)
@@ -455,12 +478,14 @@ class Board
       for player in @players
         player.board = self
       end
+      @previous_action = nil
     end
     
     attr_reader(:players)
     attr_accessor(:game_type)
     attr_reader(:all_pais)
     attr_reader(:doras)
+    attr_reader(:previous_action)
     attr_accessor(:last) # kari
     
     def on_action(&block)
@@ -557,6 +582,7 @@ class Board
       puts("-" * 80)
       #gets()
       
+      @previous_action = action
       return responses
       
     end

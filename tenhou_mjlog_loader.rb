@@ -189,7 +189,9 @@ class TenhouMjlogLoader
           when "SHUFFLE", "GO", "BYE"
             # BYE: log out
           when "UN"
-            @names = (0...4).map(){ |i| URI.decode(elem["n%d" % i]) }
+            escaped_names = (0...4).map(){ |i| elem["n%d" % i] }
+            break if escaped_names.index(nil)  # Something is wrong.
+            @names = escaped_names.map(){ |s| URI.decode(s) }
           when "TAIKYOKU"
             do_action({:type => :start_game, :names => @names})
           when "INIT"
@@ -213,8 +215,14 @@ class TenhouMjlogLoader
             pid = $2
             do_action({:type => :dahai, :actor => @board.players[player_id], :pai => pid_to_pai(pid)})
           when "REACH"
-            if elem["step"] == "1"
-              do_action({:type => :reach, :actor => @board.players[elem["who"].to_i()]})
+            actor = @board.players[elem["who"].to_i()]
+            case elem["step"]
+              when "1"
+                do_action({:type => :reach, :actor => actor})
+              when "2"
+                do_action({:type => :reach_accepted, :actor => actor})
+              else
+                raise("should not happen")
             end
           when "AGARI"
             do_action({
@@ -267,7 +275,7 @@ if $0 == __FILE__
       loader.dump_xml()
     when "play"
       ARGV[1..-1].each_with_progress() do |path|
-        p path
+        puts("# Original file: %s" % path)
         loader = TenhouMjlogLoader.new(path)
         loader.play()
       end
