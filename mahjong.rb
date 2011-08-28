@@ -106,7 +106,7 @@ class Pai
     end
     
     def same_symbol?(other)
-      return remove_red() == other.remove_red()
+      return @type == other.type && @number == other.number
     end
     
     UNKNOWN = Pai.new(nil, nil)
@@ -663,88 +663,63 @@ class ShantenCounter
       :single => 1,
     }
     
-    def initialize(pais)
+    def initialize(pais, max_shanten = nil)
       @pais = pais
+      @max_shanten = max_shanten
       raise(ArgumentError, "invalid number of pais") if @pais.size % 3 == 0
       @pai_set = Hash.new(0)
       for pai in @pais
         @pai_set[pai.remove_red()] += 1
       end
       @cache = {}
-      # TODO handle case where shanten of chitoi and normal is the same
-      (@shanten, @combinations) =
-          [count_recurse(@pai_set, []), count_chitoi(@pai_set)].min_by(){ |s, c| s }
+      @shanten = 1.0/0.0
+      @combinations = []
+      # TODO support kokushi
+      for shanten, combinations in [count_normal(@pai_set, []), count_chitoi(@pai_set)]
+        next if @max_shanten && shanten > @max_shanten
+        if shanten < @shanten
+          @shanten = shanten
+          @combinations = combinations
+        elsif shanten == @shanten
+          @combinations += combinations
+        end
+      end
     end
     
     attr_reader(:shanten, :combinations)
-    
-    def waited_pais
-      raise(ArgumentError, "invalid number of pais") if @pais.size % 3 != 1
-      raise("not tenpai") if @shanten != 0
-      result = []
-      for mentsus in @combinations
-        if mentsus == :chitoitsu
-          result.push(@pai_set.find(){ |pai, n| n == 1 }[0])
-        else
-          case mentsus.select(){ |t, ps| t == :toitsu }.size
-            when 0  # 単騎
-              (type, pais) = mentsus.find(){ |t, ps| t == :single }
-              result.push(pais[0])
-            when 1  # 両面、辺張、嵌張
-              (type, pais) = mentsus.find(){ |t, ps| [:ryanpen, :kanta].include?(t) }
-              relative_numbers = type == :ryanpen ? [-1, 2] : [1]
-              result += relative_numbers.map(){ |r| pais[0].number + r }.
-                  select(){ |n| (1..9).include?(n) }.
-                  map(){ |n| Pai.new(pais[0].type, n) }
-            when 2  # 双碰
-              result += mentsus.select(){ |t, ps| t == :toitsu }.map(){ |t, ps| ps[0] }
-            else
-              raise("should not happen")
-          end
-        end
-      end
-      return result.sort().uniq()
-    end
     
     def count_chitoi(pai_set)
       num_toitsus = pai_set.select(){ |pai, n| n >= 2 }.size
       return [-1 + [7 - num_toitsus, 0].max, [:chitoitsu]]
     end
     
-    def count_recurse(pai_set, mentsus)
+    def count_normal(pai_set, mentsus)
       # TODO 上がり牌を全部自分が持っているケースを考慮
       key = get_key(pai_set, mentsus)
       if !@cache[key]
         if pai_set.empty?
-          # TODO support kokushi
           #p mentsus
-          mentsu_categories = mentsus.map(){ |t, ps| MENTSU_CATEGORIES[t] }
-          if index = mentsu_categories.index(:toitsu)
-            mentsu_categories.delete_at(index)
-            min_shanten = -1
-          elsif index = mentsu_categories.index(:single)
-            mentsu_categories.delete_at(index)
-            min_shanten = 0
-          else
-            return [1.0/0.0, nil]
-          end
-          sizes = mentsu_categories.map(){ |m| MENTSU_SIZES[m] }.sort_by(){ |n| -n }
-          num_required_mentsus = @pais.size / 3
-          min_shanten += sizes[0...num_required_mentsus].inject(0){ |r, n| r + (3 - n) }
+          min_shanten = get_min_shanten_for_mentsus(mentsus)
           min_combinations = [mentsus]
         else
-          min_shanten = 1.0/0.0
-          first_pai = pai_set.keys.sort()[0]
-          for type in MENTSU_TYPES
-            (removed_pais, remains_set) = remove(pai_set, type, first_pai)
-            if remains_set
-              (shanten, combinations) =
-                  count_recurse(remains_set, mentsus + [[type, removed_pais]])
-              if shanten < min_shanten
-                min_shanten = shanten
-                min_combinations = combinations
-              elsif shanten == min_shanten && shanten < 1.0/0.0
-                min_combinations += combinations
+          shanten_lowerbound = get_min_shanten_for_mentsus(mentsus) if @max_shanten
+          if @max_shanten && shanten_lowerbound > @max_shanten
+            min_shanten = 1.0/0.0
+            min_combinations = []
+          else
+            min_shanten = 1.0/0.0
+            first_pai = pai_set.keys.sort()[0]
+            for type in MENTSU_TYPES
+              (removed_pais, remains_set) = remove(pai_set, type, first_pai)
+              if remains_set
+                (shanten, combinations) =
+                    count_normal(remains_set, mentsus + [[type, removed_pais]])
+                if shanten < min_shanten
+                  min_shanten = shanten
+                  min_combinations = combinations
+                elsif shanten == min_shanten && shanten < 1.0/0.0
+                  min_combinations += combinations
+                end
               end
             end
           end
@@ -756,6 +731,36 @@ class ShantenCounter
     
     def get_key(pai_set, mentsus)
       return [pai_set, mentsus.sort()]
+    end
+    
+    def get_min_shanten_for_mentsus(mentsus)
+      
+      mentsu_categories = mentsus.map(){ |t, ps| MENTSU_CATEGORIES[t] }
+      
+      # Assumes remaining pais generates best combinations.
+      num_current_pais = mentsu_categories.map(){ |m| MENTSU_SIZES[m] }.inject(0, :+)
+      num_remain_pais = @pais.size - num_current_pais
+      mentsu_categories += [:complete] * (num_remain_pais / 3)
+      case num_remain_pais % 3
+        when 1
+          mentsu_categories.push(:single)
+        when 2
+          mentsu_categories.push(:toitsu)
+      end
+      
+      # Removes 雀頭.
+      if index = mentsu_categories.index(:toitsu)
+        mentsu_categories.delete_at(index)
+        min_shanten = -1
+      else
+        min_shanten = 0
+      end
+      
+      sizes = mentsu_categories.map(){ |m| MENTSU_SIZES[m] }.sort_by(){ |n| -n }
+      num_required_mentsus = @pais.size / 3
+      min_shanten += sizes[0...num_required_mentsus].inject(0){ |r, n| r + (3 - n) }
+      return min_shanten
+      
     end
     
     def remove(pai_set, type, first_pai)
@@ -797,6 +802,53 @@ class ShantenCounter
     end
     
 end
+
+
+class TenpaiInfo
+    
+    def initialize(pais)
+      @pais = pais
+      @shanten = ShantenCounter.new(@pais, 0)
+    end
+    
+    def tenpai?
+      return @shanten.shanten == 0
+    end
+    
+    def waited_pais
+      raise(ArgumentError, "invalid number of pais") if @pais.size % 3 != 1
+      raise("not tenpai") if !self.tenpai?
+      pai_set = Hash.new(0)
+      for pai in @pais
+        pai_set[pai.remove_red()] += 1
+      end
+      result = []
+      for mentsus in @shanten.combinations
+        if mentsus == :chitoitsu
+          result.push(pai_set.find(){ |pai, n| n == 1 }[0])
+        else
+          case mentsus.select(){ |t, ps| t == :toitsu }.size
+            when 0  # 単騎
+              (type, pais) = mentsus.find(){ |t, ps| t == :single }
+              result.push(pais[0])
+            when 1  # 両面、辺張、嵌張
+              (type, pais) = mentsus.find(){ |t, ps| [:ryanpen, :kanta].include?(t) }
+              relative_numbers = type == :ryanpen ? [-1, 2] : [1]
+              result += relative_numbers.map(){ |r| pais[0].number + r }.
+                  select(){ |n| (1..9).include?(n) }.
+                  map(){ |n| Pai.new(pais[0].type, n) }
+            when 2  # 双碰
+              result += mentsus.select(){ |t, ps| t == :toitsu }.map(){ |t, ps| ps[0] }
+            else
+              raise("should not happen")
+          end
+        end
+      end
+      return result.sort().uniq()
+    end
+    
+end
+
 
 def shanten_counter_benchmark()
   all_pais = (["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n) } }.flatten() +
