@@ -551,7 +551,6 @@ class Board
     
     def do_action(action)
       
-      puts action.to_json()
       @actor = action.actor if action.actor
       
       case action.type
@@ -573,14 +572,9 @@ class Board
         @players[i].process_action(actions[i])
       end
       
-      #p Action.from_json(action.to_json(), self)
-      dump()
       @on_action.call(action) if @on_action
       
       responses = (0...4).map(){ |i| @players[i].respond_to_action(actions[i]) }
-      
-      puts("-" * 80)
-      #gets()
       
       @previous_action = action
       return responses
@@ -623,6 +617,11 @@ class Board
       end
     end
     
+    def dump_action(action)
+      puts(action.to_json())
+      dump()
+    end
+    
     def dump()
       puts("pipai: %d" % @pipais.size) if @pipais
       puts("dora: %s" % @doras.join(" ")) if @doras
@@ -636,6 +635,8 @@ class Board
           puts("     ho:    %s" % Pai.dump_pais(player.ho))
         end
       end
+      puts("-" * 80)
+      #gets()
     end
     
 end

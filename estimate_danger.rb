@@ -105,8 +105,7 @@ paths.each_with_progress() do |path|
   p path
   loader = TenhouMjlogLoader.new(path)
   loader.play() do |action|
-    #p action
-    #p action.actor.name if action.actor
+    #loader.board.dump_action(action)
     case action.type
       
       when :start_kyoku
@@ -119,7 +118,7 @@ paths.each_with_progress() do |path|
       when :end_kyoku
         for feature, count in scene_counts
           kyoku_prob = scene_prob_sums[feature] / count
-          p [:kyoku_prob, feature, kyoku_prob]
+          #p [:kyoku_prob, feature, kyoku_prob]
           kyoku_prob_sums[feature] += kyoku_prob
           kyoku_counts[feature] += 1
         end
@@ -140,7 +139,7 @@ paths.each_with_progress() do |path|
         candidates = (action.actor.tehais + [action.pai]).
             select(){ |pai| reacher.anpais.all?(){ |sh| !sh.same_symbol?(pai) } }.
             uniq()
-        p [:candidates, action.actor, reacher, candidates.join(" ")]
+        #p [:candidates, action.actor, reacher, candidates.join(" ")]
         pai_freqs = {}
         for pai in candidates
           hit = waited.include?(pai)
@@ -154,11 +153,11 @@ paths.each_with_progress() do |path|
             pai_freqs[[name, value]] ||= Hash.new(0)
             pai_freqs[[name, value]][hit] += 1
           end
-          p [pai, hit, feature_vector]
+          #p [pai, hit, feature_vector]
         end
         for feature, freqs in pai_freqs
           scene_prob = freqs[true].to_f() / (freqs[false] + freqs[true])
-          p [:scene_prob, feature, scene_prob]
+          #p [:scene_prob, feature, scene_prob]
           scene_prob_sums[feature] += scene_prob
           scene_counts[feature] += 1
         end

@@ -184,7 +184,7 @@ class TenhouMjlogLoader
       @board.on_action(&block)
       @doc = Nokogiri.XML(@xml)
       for elem in @doc.root.children
-        puts(elem)
+        #puts(elem)
         case elem.name
           when "SHUFFLE", "GO", "BYE"
             # BYE: log out
