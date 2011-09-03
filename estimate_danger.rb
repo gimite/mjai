@@ -1,6 +1,7 @@
 # coding: utf-8
 
 require "set"
+require "optparse"
 require "with_progress"
 require "./tenhou_mjlog_loader"
 
@@ -132,6 +133,8 @@ end
 #p confidence_interval(0.091, 421, 0.90)
 #exit
 
+@opts = OptionParser.getopts("v")
+
 if ARGV.empty?
   paths = Dir["mjlog/mjlog_pf4-20_n2/*.mjlog"].sort().reverse()#[0, 100]
 else
@@ -147,10 +150,10 @@ kyoku_prob_sums = Hash.new(0.0)
 kyoku_counts = Hash.new(0)
 paths.each_with_progress() do |path|
 #for path in paths
-  #p path
+  p path
   loader = TenhouMjlogLoader.new(path)
   loader.play() do |action|
-    #loader.board.dump_action(action)
+    loader.board.dump_action(action) if @opts["v"]
     case action.type
       
       when :start_kyoku

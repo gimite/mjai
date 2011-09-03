@@ -9,23 +9,33 @@ class TC_Mahjong < Test::Unit::TestCase
       
       assert_equal(-1, ShantenCounter.new(Pai.parse_pais("123m456p789sNNNFF"), -1).shanten)
       assert_equal(-1, ShantenCounter.new(Pai.parse_pais("114477m114477sCC"), -1).shanten)
+      assert_equal(-1, ShantenCounter.new(Pai.parse_pais("19m19s19pESWNPFCC"), -1).shanten)
       
       assert_equal(-1, ShantenCounter.new(Pai.parse_pais("123m456p789sNNNFF")).shanten)
       assert_equal(0, ShantenCounter.new(Pai.parse_pais("123m456p789sNNNF")).shanten)
       assert_equal(1, ShantenCounter.new(Pai.parse_pais("12m45p789sNNNFFPC")).shanten)
+      assert_equal(1, ShantenCounter.new(Pai.parse_pais("114477m11447sFP")).shanten)
+      assert_equal(1, ShantenCounter.new(Pai.parse_pais("139m19s19pESWNPF")).shanten)
+      assert_equal(1, ShantenCounter.new(Pai.parse_pais("139m19s19pESWNFF")).shanten)
+      
       assert_equal(2, ShantenCounter.new(Pai.parse_pais("111222333mNNNFF")).combinations.size)
       
     end
     
     def test_tenpai()
+      
       assert(TenpaiInfo.new(Pai.parse_pais("123m456p789sNNNF")).tenpai?)
       assert(TenpaiInfo.new(Pai.parse_pais("123m456p789sNNNFP")).tenpai?)
       assert(TenpaiInfo.new(Pai.parse_pais("12m456p789sNNNFFP")).tenpai?)
       assert(TenpaiInfo.new(Pai.parse_pais("1112345678999mN")).tenpai?)
       assert(TenpaiInfo.new(Pai.parse_pais("114477m114477sPC")).tenpai?)
       assert(TenpaiInfo.new(Pai.parse_pais("114477m114477sP")).tenpai?)
+      assert(TenpaiInfo.new(Pai.parse_pais("19m19s19pESWNPFC")).tenpai?)
+      assert(TenpaiInfo.new(Pai.parse_pais("19m19s19pESWNPPF")).tenpai?)
       assert(TenpaiInfo.new(Pai.parse_pais("123m456p1234789s")).tenpai?)
+      
       assert(!TenpaiInfo.new(Pai.parse_pais("12m45p789sNNNFFPC")).tenpai?)
+      
     end
     
     def test_waited_pais()
@@ -47,6 +57,10 @@ class TC_Mahjong < Test::Unit::TestCase
           TenpaiInfo.new(Pai.parse_pais("1112345678999m")).waited_pais.join(" "))
       assert_equal("P",
           TenpaiInfo.new(Pai.parse_pais("114477m114477sP")).waited_pais.join(" "))
+      assert_equal("1m 9m 1p 9p 1s 9s E S W N P F C",
+          TenpaiInfo.new(Pai.parse_pais("19m19s19pESWNPFC")).waited_pais.join(" "))
+      assert_equal("C",
+          TenpaiInfo.new(Pai.parse_pais("19m19s19pESWNPPF")).waited_pais.join(" "))
     end
     
     def test_tenhou_mjlog_loader()

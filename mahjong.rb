@@ -79,6 +79,10 @@ class Pai
       return @red
     end
     
+    def yaochu?
+      return @type == "t" || @number == 1 || @number == 9
+    end
+    
     def data
       return [@type, @number, @red ? 1 : 0]
     end
@@ -664,6 +668,7 @@ class ShantenCounter
     }
     
     def initialize(pais, max_shanten = nil)
+      
       @pais = pais
       @max_shanten = max_shanten
       raise(ArgumentError, "invalid number of pais") if @pais.size % 3 == 0
@@ -671,11 +676,17 @@ class ShantenCounter
       for pai in @pais
         @pai_set[pai.remove_red()] += 1
       end
+      
       @cache = {}
+      results = [
+        count_normal(@pai_set, []),
+        count_chitoi(@pai_set),
+        count_kokushi(@pai_set),
+      ]
+      
       @shanten = 1.0/0.0
       @combinations = []
-      # TODO support kokushi
-      for shanten, combinations in [count_normal(@pai_set, []), count_chitoi(@pai_set)]
+      for shanten, combinations in results
         next if @max_shanten && shanten > @max_shanten
         if shanten < @shanten
           @shanten = shanten
@@ -684,6 +695,7 @@ class ShantenCounter
           @combinations += combinations
         end
       end
+      
     end
     
     attr_reader(:shanten, :combinations)
@@ -691,6 +703,12 @@ class ShantenCounter
     def count_chitoi(pai_set)
       num_toitsus = pai_set.select(){ |pai, n| n >= 2 }.size
       return [-1 + [7 - num_toitsus, 0].max, [:chitoitsu]]
+    end
+    
+    def count_kokushi(pai_set)
+      yaochus = pai_set.select(){ |pai, n| pai.yaochu? }
+      has_yaochu_toitsu = yaochus.any?(){ |pai, n| n >= 2 }
+      return [(13 - yaochus.size) - (has_yaochu_toitsu ? 1 : 0), [:kokushimuso]]
     end
     
     def count_normal(pai_set, mentsus)
@@ -806,6 +824,8 @@ end
 
 class TenpaiInfo
     
+    ALL_YAOCHUS = Pai.parse_pais("19m19s19pESWNPFC")
+    
     def initialize(pais)
       @pais = pais
       @shanten = ShantenCounter.new(@pais, 0)
@@ -824,24 +844,32 @@ class TenpaiInfo
       end
       result = []
       for mentsus in @shanten.combinations
-        if mentsus == :chitoitsu
-          result.push(pai_set.find(){ |pai, n| n == 1 }[0])
-        else
-          case mentsus.select(){ |t, ps| t == :toitsu }.size
-            when 0  # 単騎
-              (type, pais) = mentsus.find(){ |t, ps| t == :single }
-              result.push(pais[0])
-            when 1  # 両面、辺張、嵌張
-              (type, pais) = mentsus.find(){ |t, ps| [:ryanpen, :kanta].include?(t) }
-              relative_numbers = type == :ryanpen ? [-1, 2] : [1]
-              result += relative_numbers.map(){ |r| pais[0].number + r }.
-                  select(){ |n| (1..9).include?(n) }.
-                  map(){ |n| Pai.new(pais[0].type, n) }
-            when 2  # 双碰
-              result += mentsus.select(){ |t, ps| t == :toitsu }.map(){ |t, ps| ps[0] }
+        case mentsus
+          when :chitoitsu
+            result.push(pai_set.find(){ |pai, n| n == 1 }[0])
+          when :kokushimuso
+            missing = ALL_YAOCHUS - pai_set.keys
+            if missing.empty?
+              result += ALL_YAOCHUS
             else
-              raise("should not happen")
-          end
+              result.push(missing[0])
+            end
+          else
+            case mentsus.select(){ |t, ps| t == :toitsu }.size
+              when 0  # 単騎
+                (type, pais) = mentsus.find(){ |t, ps| t == :single }
+                result.push(pais[0])
+              when 1  # 両面、辺張、嵌張
+                (type, pais) = mentsus.find(){ |t, ps| [:ryanpen, :kanta].include?(t) }
+                relative_numbers = type == :ryanpen ? [-1, 2] : [1]
+                result += relative_numbers.map(){ |r| pais[0].number + r }.
+                    select(){ |n| (1..9).include?(n) }.
+                    map(){ |n| Pai.new(pais[0].type, n) }
+              when 2  # 双碰
+                result += mentsus.select(){ |t, ps| t == :toitsu }.map(){ |t, ps| ps[0] }
+              else
+                raise("should not happen")
+            end
         end
       end
       return result.sort().uniq()
