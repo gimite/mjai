@@ -17,6 +17,8 @@ class TC_Mahjong < Test::Unit::TestCase
       assert_equal(1, ShantenCounter.new(Pai.parse_pais("114477m11447sFP")).shanten)
       assert_equal(1, ShantenCounter.new(Pai.parse_pais("139m19s19pESWNPF")).shanten)
       assert_equal(1, ShantenCounter.new(Pai.parse_pais("139m19s19pESWNFF")).shanten)
+      assert_equal(1, ShantenCounter.new(Pai.parse_pais("114477m1144777s")).shanten)
+      assert_equal(1, ShantenCounter.new(Pai.parse_pais("114477m11447777s")).shanten)
       
       assert_equal(2, ShantenCounter.new(Pai.parse_pais("111222333mNNNFF")).combinations.size)
       

@@ -702,7 +702,14 @@ class ShantenCounter
     
     def count_chitoi(pai_set)
       num_toitsus = pai_set.select(){ |pai, n| n >= 2 }.size
-      return [-1 + [7 - num_toitsus, 0].max, [:chitoitsu]]
+      num_singles = pai_set.select(){ |pai, n| n == 1 }.size
+      if num_toitsus == 6 && num_singles == 0
+        # toitsu * 5 + kotsu * 1 or toitsu * 5 + kantsu * 1
+        shanten = 1
+      else
+        shanten = -1 + [7 - num_toitsus, 0].max
+      end
+      return [shanten, [:chitoitsu]]
     end
     
     def count_kokushi(pai_set)
