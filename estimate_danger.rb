@@ -19,6 +19,8 @@ end
 FEATURE_NAMES = [
   :all, :tsupai, :suji, :musuji_supai,
   :no_chance, :one_chance_or_less, :two_chance_or_less,
+  :num_19_or_outer, :num_28_or_outer, :num_37_or_outer, :num_46_or_outer,
+  :visible_1_or_more, :visible_2_or_more, :visible_3_or_more,
 ]
 
 
@@ -56,6 +58,7 @@ class Scene
     
     attr_reader(:candidates)
     
+    # pai is without red.
     def feature_vector(pai)
       vec = {}
       for name in FEATURE_NAMES
@@ -97,6 +100,17 @@ class Scene
       return n_chance_or_less(pai, 2)
     end
     
+    (1..4).each() do |i|
+      define_method("num_%d%d_or_outer" % [i, 10 - i]) do |pai|
+        num_n_or_outer(pai, i)
+      end
+    end
+    (1..3).each() do |i|
+      define_method("visible_%d_or_more" % i) do |pai|
+        visible_n_or_more(pai, i)
+      end
+    end
+    
     def n_chance_or_less(pai, n)
       if pai.type == "t" || (4..6).include?(pai.number)
         return false
@@ -106,6 +120,15 @@ class Scene
           @visible_set[kabe_pai] >= 4 - n
         end
       end
+    end
+    
+    def num_n_or_outer(pai, n)
+      return pai.type != "t" && (pai.number <= n || pai.number >= 10 - n)
+    end
+    
+    def visible_n_or_more(pai, n)
+      # n doesn't include itself.
+      return @visible_set[pai] >= n + 1
     end
     
 end
@@ -146,12 +169,13 @@ case action
     
     raise("-o is missing") if !@opts["o"]
     if ARGV.empty?
-      paths = Dir["mjlog/mjlog_pf4-20_n2/*.mjlog"].sort().reverse()
+      paths = Dir["mjlog/mjlog_pf4-20_n?/*.mjlog"].sort().reverse()
     else
       paths = ARGV
     end
     paths = paths[paths.index(@opts["start"])..-1] if @opts["start"]
     paths = paths[0, @opts["n"].to_i()] if @opts["n"]
+    $stderr.puts("%d files." % paths.size)
 
     reacher = nil
     waited = nil
@@ -178,7 +202,7 @@ case action
               stored_kyoku = nil
             
             when :reach_accepted
-              if action.actor.name == "（≧▽≦）" || reacher
+              if ["ASAPIN", "（≧▽≦）"].include?(action.actor.name) || reacher
                 skip = true
               end
               next if skip
@@ -194,6 +218,10 @@ case action
                 hit = waited.include?(pai)
                 feature_vector = scene.feature_vector(pai)
                 stored_scene.candidates.push([feature_vector, hit])
+                if @opts["v"]
+                  puts("candidate %s: %s" % [
+                      pai, feature_vector.select(){ |k, v| v }.map(){ |k, v| k }.join(" ")])
+                end
               end
               stored_kyoku.scenes.push(stored_scene)
               
