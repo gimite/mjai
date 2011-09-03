@@ -280,5 +280,8 @@ case action
             [feature, overall_prob, *conf_interval, kyoku_counts[feature]])
       end
     end
+    
+  else
+    raise("unknown action")
 
 end
