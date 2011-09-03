@@ -235,8 +235,9 @@ class Action < Serializable
       [:pais, :pais],
       [:id, :number],
       [:oya, :player],
-      [:names, :strings],
       [:dora, :pai],
+      [:uri, :string],
+      [:names, :strings],
     ])
     
 end

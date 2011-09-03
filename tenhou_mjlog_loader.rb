@@ -168,6 +168,7 @@ class TenhouMjlogLoader
     include(Util)
     
     def initialize(path)
+      @path = path
       Zlib::GzipReader.open(path) do |f|
         @xml = f.read().force_encoding("utf-8")
       end
@@ -183,7 +184,8 @@ class TenhouMjlogLoader
       @board = Board.new((0...4).map(){ PuppetPlayer.new() })
       @board.on_action(&block)
       @doc = Nokogiri.XML(@xml)
-      for elem in @doc.root.children
+      elems = @doc.root.children
+      elems.each_with_index() do |elem, j|
         #puts(elem)
         case elem.name
           when "SHUFFLE", "GO", "BYE"
@@ -193,7 +195,8 @@ class TenhouMjlogLoader
             break if escaped_names.index(nil)  # Something is wrong.
             @names = escaped_names.map(){ |s| URI.decode(s) }
           when "TAIKYOKU"
-            do_action({:type => :start_game, :names => @names})
+            uri = "http://tenhou.net/0/?log=" + File.basename(@path, ".mjlog")
+            do_action({:type => :start_game, :uri => uri, :names => @names})
           when "INIT"
             oya = elem["oya"].to_i()
             do_action({
@@ -231,7 +234,9 @@ class TenhouMjlogLoader
               :target => @board.players[elem["fromWho"].to_i()],
               :pai => pid_to_pai(elem["machi"]),
             })
-            do_action({:type => :end_kyoku})
+            if !elems[j + 1] || elems[j + 1].name != "AGARI"
+              do_action({:type => :end_kyoku})
+            end
           when "RYUUKYOKU"
             reason_map = {
               "yao9" => :kyushukyuhai,
