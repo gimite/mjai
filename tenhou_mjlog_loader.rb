@@ -244,6 +244,7 @@ class TenhouMjlogLoader
               "reach4" => :suchareach,
               "ron3" => :sanchaho,
               "nm" => :nagashimangan,
+              "kan4" => :sukaikan,
               nil => :fanpai,
             }
             reason = reason_map[elem["type"]]

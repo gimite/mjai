@@ -60,11 +60,7 @@ class Scene
     
     # pai is without red.
     def feature_vector(pai)
-      vec = {}
-      for name in FEATURE_NAMES
-        vec[name] = __send__(name, pai)
-      end
-      return vec
+      return FEATURE_NAMES.map(){ |s| __send__(s, pai) }
     end
     
     def all(pai)
@@ -177,96 +173,116 @@ case action
     paths = paths[0, @opts["n"].to_i()] if @opts["n"]
     $stderr.puts("%d files." % paths.size)
 
-    reacher = nil
-    waited = nil
-    skip = false
-    stored_kyokus = []
-    stored_kyoku = nil
-    paths.each_with_progress() do |path|
-    #for path in paths
-      begin
-        loader = TenhouMjlogLoader.new(path)
-        loader.play() do |action|
-          loader.board.dump_action(action) if @opts["v"]
-          case action.type
-            
-            when :start_kyoku
-              stored_kyoku = StoredKyoku.new([])
-              reacher = nil
-              skip = false
-            
-            when :end_kyoku
-              next if skip
-              raise("should not happen") if !stored_kyoku
-              stored_kyokus.push(stored_kyoku)
-              stored_kyoku = nil
-            
-            when :reach_accepted
-              if ["ASAPIN", "（≧▽≦）"].include?(action.actor.name) || reacher
-                skip = true
-              end
-              next if skip
-              reacher = action.actor
-              waited = TenpaiInfo.new(action.actor.tehais).waited_pais
-            
-            when :dahai
-              next if skip || !reacher || action.actor.reach?
-              scene = Scene.new(loader.board, action, reacher)
-              stored_scene = StoredScene.new([])
-              #p [:candidates, action.actor, reacher, scene.candidates.join(" ")]
-              for pai in scene.candidates
-                hit = waited.include?(pai)
-                feature_vector = scene.feature_vector(pai)
-                stored_scene.candidates.push([feature_vector, hit])
-                if @opts["v"]
-                  puts("candidate %s: %s" % [
-                      pai, feature_vector.select(){ |k, v| v }.map(){ |k, v| k }.join(" ")])
-                end
-              end
-              stored_kyoku.scenes.push(stored_scene)
-              
-          end
-        end
-      rescue Exception
-        $stderr.puts("at #{path}")
-        raise()
-      end
-    end
-
     open(@opts["o"], "wb") do |f|
+      
+      reacher = nil
+      waited = nil
+      skip = false
+      stored_kyokus = []
+      stored_kyoku = nil
+      paths.enum_for(:each_with_progress).each_with_index() do |path, i|
+      #for path in paths
+        if i % 100 == 0 && i > 0
+          Marshal.dump(stored_kyokus, f)
+          stored_kyokus.clear()
+        end
+        begin
+          loader = TenhouMjlogLoader.new(path)
+          loader.play() do |action|
+            loader.board.dump_action(action) if @opts["v"]
+            case action.type
+              
+              when :start_kyoku
+                stored_kyoku = StoredKyoku.new([])
+                reacher = nil
+                skip = false
+              
+              when :end_kyoku
+                next if skip
+                raise("should not happen") if !stored_kyoku
+                stored_kyokus.push(stored_kyoku)
+                stored_kyoku = nil
+              
+              when :reach_accepted
+                if ["ASAPIN", "（≧▽≦）"].include?(action.actor.name) || reacher
+                  skip = true
+                end
+                next if skip
+                reacher = action.actor
+                waited = TenpaiInfo.new(action.actor.tehais).waited_pais
+              
+              when :dahai
+                next if skip || !reacher || action.actor.reach?
+                scene = Scene.new(loader.board, action, reacher)
+                stored_scene = StoredScene.new([])
+                #p [:candidates, action.actor, reacher, scene.candidates.join(" ")]
+                for pai in scene.candidates
+                  hit = waited.include?(pai)
+                  feature_vector = scene.feature_vector(pai)
+                  stored_scene.candidates.push([feature_vector, hit])
+                  if @opts["v"]
+                    puts("candidate %s: %s" % [
+                        pai, (0...feature_vector.size).select(){ |i| feature_vector[i] }.
+                            map(){ |i| FEATURE_NAMES[i] }.join(" ")])
+                  end
+                end
+                stored_kyoku.scenes.push(stored_scene)
+                
+            end
+          end
+        rescue Exception
+          $stderr.puts("at #{path}")
+          raise()
+        end
+      end
+      
       Marshal.dump(stored_kyokus, f)
     end
 
   when "calculate"
     
-    stored_kyokus = open(ARGV[0], "rb"){ |f| Marshal.load(f) }
     kyoku_prob_sums = Hash.new(0.0)
     kyoku_counts = Hash.new(0)
-    for stored_kyoku in stored_kyokus
-      scene_prob_sums = Hash.new(0.0)
-      scene_counts = Hash.new(0)
-      for stored_scene in stored_kyoku.scenes
-        pai_freqs = {}
-        for feature_vector, hit in stored_scene.candidates
-          for name, value in feature_vector
-            pai_freqs[[name, value]] ||= Hash.new(0)
-            pai_freqs[[name, value]][hit] += 1
+    
+    open(ARGV[0], "rb") do |f|
+      
+      f.with_progress() do
+        begin
+          while true
+            stored_kyokus = Marshal.load(f)
+            for stored_kyoku in stored_kyokus
+              scene_prob_sums = Hash.new(0.0)
+              scene_counts = Hash.new(0)
+              for stored_scene in stored_kyoku.scenes
+                pai_freqs = {}
+                for feature_vector, hit in stored_scene.candidates
+                  for i in 0...feature_vector.size
+                    name = FEATURE_NAMES[i]
+                    value= feature_vector[i]
+                    pai_freqs[[name, value]] ||= Hash.new(0)
+                    pai_freqs[[name, value]][hit] += 1
+                  end
+                  #p [pai, hit, feature_vector]
+                end
+                for feature, freqs in pai_freqs
+                  scene_prob = freqs[true].to_f() / (freqs[false] + freqs[true])
+                  #p [:scene_prob, feature, scene_prob]
+                  scene_prob_sums[feature] += scene_prob
+                  scene_counts[feature] += 1
+                end
+              end
+              for feature, count in scene_counts
+                kyoku_prob = scene_prob_sums[feature] / count
+                #p [:kyoku_prob, feature, kyoku_prob]
+                kyoku_prob_sums[feature] += kyoku_prob
+                kyoku_counts[feature] += 1
+              end
+            end
           end
-          #p [pai, hit, feature_vector]
-        end
-        for feature, freqs in pai_freqs
-          scene_prob = freqs[true].to_f() / (freqs[false] + freqs[true])
-          #p [:scene_prob, feature, scene_prob]
-          scene_prob_sums[feature] += scene_prob
-          scene_counts[feature] += 1
+        rescue EOFError
         end
       end
-      for feature, count in scene_counts
-        kyoku_prob = scene_prob_sums[feature] / count
-        #p [:kyoku_prob, feature, kyoku_prob]
-        kyoku_prob_sums[feature] += kyoku_prob
-        kyoku_counts[feature] += 1
-      end
+      
     end
 
     for name in FEATURE_NAMES
