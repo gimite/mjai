@@ -167,8 +167,9 @@ class TenhouMjlogLoader
     
     include(Util)
     
-    def initialize(path)
+    def initialize(path, board)
       @path = path
+      @board = board
       Zlib::GzipReader.open(path) do |f|
         @xml = f.read().force_encoding("utf-8")
       end
@@ -180,9 +181,7 @@ class TenhouMjlogLoader
       puts(@xml)
     end
     
-    def play(&block)
-      @board = Board.new((0...4).map(){ PuppetPlayer.new() })
-      @board.on_action(&block)
+    def play_game()
       @doc = Nokogiri.XML(@xml)
       elems = @doc.root.children
       elems.each_with_index() do |elem, j|

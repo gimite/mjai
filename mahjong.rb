@@ -1,4 +1,5 @@
 require "json"
+autoload :TenhouMjlogLoader, "./tenhou_mjlog_loader"
 
 
 class Pai
@@ -497,6 +498,81 @@ class Board
       @on_action = block
     end
     
+    def do_action(action)
+      
+      @actor = action.actor if action.actor
+      
+      case action.type
+        when :start_game
+          # TODO change this by red config
+          pais = (0...4).map() do |i|
+            ["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n, n == 5 && i == 0) } } +
+                (1..7).map(){ |n| Pai.new("t", n) }
+          end
+          @all_pais = pais.flatten().sort()
+        when :start_kyoku
+          @doras = [action.dora]
+        when :dora
+          @doras.push(action.pai)
+      end
+      
+      actions = (0...4).map(){ |i| action_in_view(action, i) }
+      for i in 0...4
+        @players[i].process_action(actions[i])
+      end
+      
+      @on_action.call(action) if @on_action
+      
+      responses = (0...4).map(){ |i| @players[i].respond_to_action(actions[i]) }
+      
+      @previous_action = action
+      return responses
+      
+    end
+    
+    def action_in_view(action, player_id)
+      player = @players[player_id]
+      case action.type
+        when :start_game
+          return Action.new({:type => :start_game, :id => player_id, :names => action.names})
+        when :haipai
+          pais = action.actor == player ? action.pais : [Pai::UNKNOWN] * action.pais.size
+          return Action.new({:type => :haipai, :actor => action.actor, :pais => pais})
+        when :tsumo
+          pai = action.actor == player ? action.pai : Pai::UNKNOWN
+          return Action.new({:type => :tsumo, :actor => action.actor, :pai => pai})
+        else
+          return action
+      end
+    end
+    
+    def dump_action(action)
+      puts(action.to_json())
+      dump()
+    end
+    
+    def dump()
+      puts("pipai: %d" % @pipais.size) if @pipais
+      puts("dora: %s" % @doras.join(" ")) if @doras
+      @players.each_with_index() do |player, i|
+        if player.tehais
+          puts("%s[%d] tehai: %s %s" %
+               [@actor == player ? "*" : " ",
+                i,
+                Pai.dump_pais(player.tehais),
+                player.furos.join(" ")])
+          puts("     ho:    %s" % Pai.dump_pais(player.ho))
+        end
+      end
+      puts("-" * 80)
+      #gets()
+    end
+    
+end
+
+
+class ActiveBoard < Board
+    
     def play_game()
       do_action(Action.new({:type => :start_game}))
       @oya = @players[0]  # TODO fix this
@@ -554,57 +630,9 @@ class Board
       end
     end
     
-    def do_action(action)
-      
-      @actor = action.actor if action.actor
-      
-      case action.type
-        when :start_game
-          # TODO change this by red config
-          pais = (0...4).map() do |i|
-            ["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n, n == 5 && i == 0) } } +
-                (1..7).map(){ |n| Pai.new("t", n) }
-          end
-          @all_pais = pais.flatten().sort()
-        when :start_kyoku
-          @doras = [action.dora]
-        when :dora
-          @doras.push(action.pai)
-      end
-      
-      actions = (0...4).map(){ |i| action_in_view(action, i) }
-      for i in 0...4
-        @players[i].process_action(actions[i])
-      end
-      
-      @on_action.call(action) if @on_action
-      
-      responses = (0...4).map(){ |i| @players[i].respond_to_action(actions[i]) }
-      
-      @previous_action = action
-      return responses
-      
-    end
-    
     def choose_actions(actions)
       action = actions.find(){ |a| a }  # TODO fix this
       return action ? [action] : []
-    end
-    
-    def action_in_view(action, player_id)
-      player = @players[player_id]
-      case action.type
-        when :start_game
-          return Action.new({:type => :start_game, :id => player_id, :names => action.names})
-        when :haipai
-          pais = action.actor == player ? action.pais : [Pai::UNKNOWN] * action.pais.size
-          return Action.new({:type => :haipai, :actor => action.actor, :pais => pais})
-        when :tsumo
-          pai = action.actor == player ? action.pai : Pai::UNKNOWN
-          return Action.new({:type => :tsumo, :actor => action.actor, :pai => pai})
-        else
-          return action
-      end
     end
     
     def process_ryukyoku()
@@ -622,26 +650,24 @@ class Board
       end
     end
     
-    def dump_action(action)
-      puts(action.to_json())
-      dump()
+end
+
+
+class Archive < Board
+    
+    def initialize(path)
+      super((0...4).map(){ PuppetPlayer.new() })
+      case File.extname(path)
+        when ".mjlog"
+          @loader = TenhouMjlogLoader.new(path, self)
+        else
+          raise("unknown format")
+      end
     end
     
-    def dump()
-      puts("pipai: %d" % @pipais.size) if @pipais
-      puts("dora: %s" % @doras.join(" ")) if @doras
-      @players.each_with_index() do |player, i|
-        if player.tehais
-          puts("%s[%d] tehai: %s %s" %
-               [@actor == player ? "*" : " ",
-                i,
-                Pai.dump_pais(player.tehais),
-                player.furos.join(" ")])
-          puts("     ho:    %s" % Pai.dump_pais(player.ho))
-        end
-      end
-      puts("-" * 80)
-      #gets()
+    def play_game(&block)
+      on_action(&block) if block
+      @loader.play_game()
     end
     
 end
