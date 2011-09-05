@@ -307,8 +307,7 @@ class DangerEstimator
     
     def calculate_probabilities(features_path, criteria)
       
-      @kyoku_prob_sums = Hash.new(0.0)
-      @kyoku_counts = Hash.new(0)
+      @kyoku_probs_map = {}
       
       open(features_path, "rb") do |f|
         f.with_progress() do
@@ -326,13 +325,12 @@ class DangerEstimator
       
       result = {}
       for criterion in criteria
-        count = @kyoku_counts[criterion]
-        next if count == 0
-        overall_prob = @kyoku_prob_sums[criterion] / count
+        kyoku_probs = @kyoku_probs_map[criterion]
+        next if !kyoku_probs
         result[criterion] = metrics = CriterionMetrics.new(
-            overall_prob,
-            confidence_interval(overall_prob, count),
-            count)
+            kyoku_probs.inject(:+) / kyoku_probs.size,
+            confidence_interval(kyoku_probs),
+            kyoku_probs.size)
         puts("%p\n  %.2f [%.2f, %.2f] (%d samples)" %
             [criterion,
              metrics.average_prob * 100.0,
@@ -368,8 +366,8 @@ class DangerEstimator
       for criterion, count in scene_counts
         kyoku_prob = scene_prob_sums[criterion] / count
         #p [:kyoku_prob, criterion, kyoku_prob]
-        @kyoku_prob_sums[criterion] += kyoku_prob
-        @kyoku_counts[criterion] += 1
+        @kyoku_probs_map[criterion] ||= []
+        @kyoku_probs_map[criterion].push(kyoku_prob)
       end
     end
     
@@ -377,22 +375,30 @@ class DangerEstimator
       return criterion.all?(){ |k, v| feature_vector[FEATURE_NAMES.index(k)] == v }
     end
     
-    def confidence_interval(ratio, num_samples, conf_level = 0.90)
-      mod_ratio = (num_samples * ratio + 1.0) / (num_samples + 2.0)
+    # Uses bootstrap resampling.
+    def confidence_interval(samples, conf_level = 0.95)
       num_tries = 1000
-      probs = []
+      averages = []
       num_tries.times() do
-        positive = 0
-        num_samples.times() do
-          positive += 1 if rand() < mod_ratio
+        sum = 0.0
+        (samples.size + 2).times() do
+          idx = rand(samples.size + 2)
+          case idx
+            when samples.size
+              sum += 0.0
+            when samples.size + 1
+              sum += 1.0
+            else
+              sum += samples[idx]
+          end
         end
-        probs.push(positive.to_f() / num_samples)
+        averages.push(sum / (samples.size + 2))
       end
-      probs.sort!()
+      averages.sort!()
       margin = (1.0 - conf_level) / 2
       return [
-        probs[(num_tries * margin).to_i()],
-        probs[(num_tries * (1.0 - margin)).to_i()],
+        averages[(num_tries * margin).to_i()],
+        averages[(num_tries * (1.0 - margin)).to_i()],
       ]
     end
 
