@@ -6,16 +6,6 @@ require "with_progress"
 require "./mahjong"
 
 
-FEATURE_NAMES = [
-  :all, :tsupai,
-  :suji, :urasuji, :aida4ken, :reach_suji,
-  :no_chance, :one_chance_or_less, :two_chance_or_less,
-  :outer_early_sutehai,
-  :num_19_or_outer, :num_28_or_outer, :num_37_or_outer, :num_46_or_outer,
-  :visible_1_or_more, :visible_2_or_more, :visible_3_or_more,
-]
-
-
 class Scene
     
     URASUJI_INV_MAP = {
@@ -29,6 +19,17 @@ class Scene
       8 => [4, 9],
       9 => [5],
     }
+    
+    @@feature_names = []
+    
+    def self.define_feature(name, &block)
+      define_method(name, &block)
+      @@feature_names.push(name)
+    end
+    
+    def self.feature_names
+      return @@feature_names
+    end
     
     def initialize(board, action, reacher, prereach_sutehais)
       
@@ -69,18 +70,18 @@ class Scene
     
     # pai is without red.
     def feature_vector(pai)
-      return FEATURE_NAMES.map(){ |s| __send__(s, pai) }
+      return @@feature_names.map(){ |s| __send__(s, pai) }
     end
     
-    def all(pai)
+    define_feature("all") do |pai|
       return true
     end
     
-    def tsupai(pai)
+    define_feature("tsupai") do |pai|
       return pai.type == "t"
     end
     
-    def suji(pai)
+    define_feature("suji") do |pai|
       if pai.type == "t"
         return false
       else
@@ -88,7 +89,7 @@ class Scene
       end
     end
     
-    def reach_suji(pai)
+    define_feature("reach_suji") do |pai|
       reach_pai = @prereach_sutehais[-1].remove_red()
       if pai.type == "t" || reach_pai.type != pai.type || pai.number == 1 || pai.number == 9
         return false
@@ -100,11 +101,7 @@ class Scene
       end
     end
     
-    def get_suji_numbers(pai)
-      return [pai.number - 3, pai.number + 3].select(){ |n| (1..9).include?(n) }
-    end
-    
-    def urasuji(pai)
+    define_feature("urasuji") do |pai|
       if pai.type == "t"
         return false
       else
@@ -113,7 +110,7 @@ class Scene
       end
     end
     
-    def aida4ken(pai)
+    define_feature("aida4ken") do |pai|
       if pai.type == "t"
         return false
       else
@@ -126,7 +123,7 @@ class Scene
       end
     end
     
-    def outer_early_sutehai(pai)
+    define_feature("outer_early_sutehai") do |pai|
       if pai.type == "t" || pai.number == 5
         return false
       else
@@ -135,27 +132,26 @@ class Scene
       end
     end
     
-    def no_chance(pai)
-      return n_chance_or_less(pai, 0)
-    end
-    
-    def one_chance_or_less(pai)
-      return n_chance_or_less(pai, 1)
-    end
-    
-    def two_chance_or_less(pai)
-      return n_chance_or_less(pai, 2)
-    end
-    
-    (1..4).each() do |i|
-      define_method("num_%d%d_or_outer" % [i, 10 - i]) do |pai|
-        num_n_or_outer(pai, i)
+    (0..3).each() do |n|
+      define_feature("chances<=#{n}") do |pai|
+        return n_chance_or_less(pai, n)
       end
     end
+    
     (1..3).each() do |i|
-      define_method("visible_%d_or_more" % i) do |pai|
+      define_method("visible>=%d" % i) do |pai|
         visible_n_or_more(pai, i)
       end
+    end
+    
+    (2..5).each() do |i|
+      define_feature("%d<=n<=%d" % [i, 10 - i]) do |pai|
+        num_n_or_inner(pai, i)
+      end
+    end
+    
+    def get_suji_numbers(pai)
+      return [pai.number - 3, pai.number + 3].select(){ |n| (1..9).include?(n) }
     end
     
     def n_chance_or_less(pai, n)
@@ -169,8 +165,8 @@ class Scene
       end
     end
     
-    def num_n_or_outer(pai, n)
-      return pai.type != "t" && (pai.number <= n || pai.number >= 10 - n)
+    def num_n_or_inner(pai, n)
+      return pai.type != "t" && pai.number >= n && pai.number <= 10 - n
     end
     
     def visible_n_or_more(pai, n)
@@ -193,6 +189,10 @@ class DangerEstimator
     def extract_features_from_files(input_paths, output_path)
       $stderr.puts("%d files." % input_paths.size)
       open(output_path, "wb") do |f|
+        meta_data = {
+          :feature_names => Scene.feature_names,
+        }
+        Marshal.dump(meta_data, f)
         @stored_kyokus = []
         input_paths.enum_for(:each_with_progress).each_with_index() do |path, i|
           if i % 100 == 0 && i > 0
@@ -251,7 +251,7 @@ class DangerEstimator
                   puts("candidate %s: hit=%d, %s" % [
                       pai, hit ? 1 : 0,
                       (0...feature_vector.size).select(){ |i| feature_vector[i] }.
-                          map(){ |i| FEATURE_NAMES[i] }.join(" ")])
+                          map(){ |i| Scene.feature_names[i] }.join(" ")])
                 end
               end
               stored_kyoku.scenes.push(stored_scene)
@@ -265,7 +265,7 @@ class DangerEstimator
     end
     
     def calculate_single_probabilities(features_path)
-      criteria = FEATURE_NAMES.map(){ |s| [{s => false}, {s => true}] }.flatten()
+      criteria = Scene.feature_names.map(){ |s| [{s => false}, {s => true}] }.flatten()
       calculate_probabilities(features_path, criteria)
     end
     
@@ -273,7 +273,7 @@ class DangerEstimator
       p [:generate_decision_tree, base_criterion]
       targets = {}
       criteria = []
-      for name in FEATURE_NAMES
+      for name in Scene.feature_names
         next if base_criterion.has_key?(name)
         negative_criterion = base_criterion.merge({name => false})
         positive_criterion = base_criterion.merge({name => true})
@@ -310,6 +310,10 @@ class DangerEstimator
       @kyoku_probs_map = {}
       
       open(features_path, "rb") do |f|
+        meta_data = Marshal.load(f)
+        if meta_data[:feature_names] != Scene.feature_names
+          raise("feature set has been changed")
+        end
         f.with_progress() do
           begin
             while true
@@ -372,7 +376,7 @@ class DangerEstimator
     end
     
     def match?(feature_vector, criterion)
-      return criterion.all?(){ |k, v| feature_vector[FEATURE_NAMES.index(k)] == v }
+      return criterion.all?(){ |k, v| feature_vector[Scene.feature_names.index(k)] == v }
     end
     
     # Uses bootstrap resampling.
