@@ -257,6 +257,7 @@ class Player
     attr_reader(:ho)  # 河 (鳴かれた牌を含まない)
     attr_reader(:sutehais)  # 捨牌 (鳴かれた牌を含む)
     attr_reader(:extra_anpais)  # sutehais以外のこのプレーヤに対する安牌
+    attr_reader(:reach_ho_index)
     attr_accessor(:board)
     
     def anpais
@@ -287,6 +288,7 @@ class Player
           @sutehais = []
           @extra_anpais = []
           @reach = false
+          @reach_ho_index = nil
       end
       
       if action.actor == self
@@ -323,6 +325,7 @@ class Player
             })
           when :reach_accepted
             @reach = true
+            @reach_ho_index = @ho.size - 1
         end
       end
       
@@ -561,7 +564,14 @@ class Board
                 i,
                 Pai.dump_pais(player.tehais),
                 player.furos.join(" ")])
-          puts("     ho:    %s" % Pai.dump_pais(player.ho))
+          if player.reach_ho_index
+            ho_str =
+                Pai.dump_pais(player.ho[0...player.reach_ho_index]) + "=" +
+                Pai.dump_pais(player.ho[player.reach_ho_index..-1])
+          else
+            ho_str = Pai.dump_pais(player.ho)
+          end
+          puts("     ho:    %s" % ho_str)
         end
       end
       puts("-" * 80)
