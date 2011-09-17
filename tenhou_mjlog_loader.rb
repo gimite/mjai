@@ -185,7 +185,7 @@ class TenhouMjlogLoader
       @doc = Nokogiri.XML(@xml)
       elems = @doc.root.children
       elems.each_with_index() do |elem, j|
-        #puts(elem)
+        #puts(elem)  # kari
         case elem.name
           when "SHUFFLE", "GO", "BYE"
             # BYE: log out
@@ -201,7 +201,7 @@ class TenhouMjlogLoader
             do_action({
               :type => :start_kyoku,
               :oya => @board.players[oya],
-              :dora => pid_to_pai(elem["seed"].split(/,/)[5]),
+              :dora_marker => pid_to_pai(elem["seed"].split(/,/)[5]),
             })
             for i in 0...4
               player_id = (oya + i) % 4

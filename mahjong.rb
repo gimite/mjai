@@ -114,6 +114,16 @@ class Pai
       return @type == other.type && @number == other.number
     end
     
+    # Next pai in terms of dora derivation.
+    def succ
+      if (@type == "t" && @number == 7) || (@type != "t" && @number == 9)
+        number = 1
+      else
+        number = @number + 1
+      end
+      return Pai.new(@type, number)
+    end
+    
     UNKNOWN = Pai.new(nil, nil)
     
 end
@@ -236,7 +246,7 @@ class Action < Serializable
       [:pais, :pais],
       [:id, :number],
       [:oya, :player],
-      [:dora, :pai],
+      [:dora_marker, :pai],
       [:uri, :string],
       [:names, :strings],
     ])
@@ -270,11 +280,11 @@ class Player
     
     def process_action(action)
       
-      if board.previous_action &&
-          board.previous_action.type == :dahai &&
-          board.previous_action.actor != self &&
+      if @board.previous_action &&
+          @board.previous_action.type == :dahai &&
+          @board.previous_action.actor != self &&
           action.type != :hora
-        @extra_anpais.push(board.previous_action.pai)
+        @extra_anpais.push(@board.previous_action.pai)
       end
       
       case action.type
@@ -337,6 +347,14 @@ class Player
         end
       end
       
+    end
+    
+    def jikaze
+      if @board.oya
+        return Pai.new("t", 1 + (4 + @id - @board.oya.id) % 4)
+      else
+        return nil
+      end
     end
     
     def delete_tehai(pai)
@@ -487,15 +505,20 @@ class Board
       for player in @players
         player.board = self
       end
+      @bakaze = nil
+      @oya = nil
+      @dora_markers = nil
       @previous_action = nil
     end
     
     attr_reader(:players)
     attr_accessor(:game_type)
     attr_reader(:all_pais)
-    attr_reader(:doras)
+    attr_reader(:bakaze)
+    attr_reader(:oya)
+    attr_reader(:dora_markers)  # ドラ表示牌
     attr_reader(:previous_action)
-    attr_accessor(:last) # kari
+    attr_accessor(:last)  # kari
     
     def on_action(&block)
       @on_action = block
@@ -514,9 +537,13 @@ class Board
           end
           @all_pais = pais.flatten().sort()
         when :start_kyoku
-          @doras = [action.dora]
+          if action.oya.id == 0 && @oya != action.oya
+            @bakaze = @bakaze ? @bakaze.succ : Pai.new("E")
+          end
+          @oya = action.oya
+          @dora_markers = [action.dora_marker]
         when :dora
-          @doras.push(action.pai)
+          @dora_markers.push(action.pai)
       end
       
       actions = (0...4).map(){ |i| action_in_view(action, i) }
@@ -549,14 +576,21 @@ class Board
       end
     end
     
+    def doras
+      return @dora_markers ? @dora_markers.map(){ |pai| pai.succ } : nil
+    end
+    
     def dump_action(action)
       puts(action.to_json())
       dump()
     end
     
     def dump()
-      puts("pipai: %d" % @pipais.size) if @pipais
-      puts("dora: %s" % @doras.join(" ")) if @doras
+      print("pipai: %d  " % @pipais.size) if @pipais
+      print("bakaze: %s  " % @bakaze) if @bakaze
+      print("oya: %d  " % @oya.id) if @oya
+      print("dora_marker: %s  " % @dora_markers.join(" ")) if @dora_markers
+      puts()
       @players.each_with_index() do |player, i|
         if player.tehais
           puts("%s[%d] tehai: %s %s" %
@@ -585,7 +619,7 @@ class ActiveBoard < Board
     
     def play_game()
       do_action(Action.new({:type => :start_game}))
-      @oya = @players[0]  # TODO fix this
+      @next_oya = @players[0]  # TODO fix this
       while !self.game_finished?
         play_kyoku()
       end
@@ -598,12 +632,12 @@ class ActiveBoard < Board
         @pipais = @all_pais.shuffle()
         @pipais.shuffle!()
         @wanpais = @pipais.pop(14)
-        do_action(Action.new({:type => :start_kyoku, :oya => @oya}))
+        do_action(Action.new({:type => :start_kyoku, :oya => @next_oya}))
         for player in @players
           do_action(Action.new(
               {:type => :haipai, :actor => player, :pais => @pipais.pop(13) }))
         end
-        @actor = @oya
+        @actor = self.oya
         while !@pipais.empty?
           mota()
           @actor = @players[(@actor.id + 1) % 4]

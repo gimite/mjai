@@ -20,6 +20,14 @@ class Scene
       9 => [5],
     }
     
+    SENKISUJI_INV_MAP = {
+      3 => [1, 8],
+      4 => [2, 9],
+      5 => [3, 7],
+      6 => [1, 8],
+      7 => [2, 9],
+    }
+    
     @@feature_names = []
     
     def self.define_feature(name, &block)
@@ -40,8 +48,11 @@ class Scene
       @prereach_sutehais = prereach_sutehais
       
       @anpai_set = to_pai_set(reacher.anpais)
-      @prereach_sutehais_set = to_pai_set(@prereach_sutehais)
-      @early_sutehais_set = to_pai_set(@prereach_sutehais[0, 6])
+      @prereach_sutehai_set = to_pai_set(@prereach_sutehais)
+      @early_sutehai_set = to_pai_set(@prereach_sutehais[0...(@prereach_sutehais.size / 2)])
+      @late_sutehai_set = to_pai_set(@prereach_sutehais[(@prereach_sutehais.size / 2)..-1])
+      @dora_set = to_pai_set(@board.doras)
+      @tehai_set = to_pai_set(@me.tehais + [@action.pai])
       
       visible = []
       visible += @board.doras
@@ -89,47 +100,74 @@ class Scene
       end
     end
     
+    # 片筋 or 筋
+    define_feature("weak_suji") do |pai|
+      return suji_of(pai, @anpai_set)
+    end
+    
     define_feature("reach_suji") do |pai|
       reach_pai = @prereach_sutehais[-1].remove_red()
       if pai.type == "t" || reach_pai.type != pai.type || pai.number == 1 || pai.number == 9
         return false
       else
         suji_numbers = get_suji_numbers(pai)
-        return suji_numbers.all?(){ |n| @prereach_sutehais_set.include?(Pai.new(pai.type, n)) } &&
+        return suji_numbers.all?(){ |n| @prereach_sutehai_set.include?(Pai.new(pai.type, n)) } &&
             suji_numbers.include?(reach_pai.number) &&
-            @prereach_sutehais_set[reach_pai] == 1
+            @prereach_sutehai_set[reach_pai] == 1
       end
     end
     
+    # http://ja.wikipedia.org/wiki/%E7%AD%8B_(%E9%BA%BB%E9%9B%80)#.E8.A3.8F.E3.82.B9.E3.82.B8
     define_feature("urasuji") do |pai|
-      if pai.type == "t"
-        return false
-      else
-        urasuji_numbers = URASUJI_INV_MAP[pai.number]
-        return urasuji_numbers.any?(){ |n| @prereach_sutehais_set.has_key?(Pai.new(pai.type, n)) }
-      end
+      return urasuji_of(pai, @prereach_sutehai_set)
     end
     
+    define_feature("early_urasuji") do |pai|
+      return urasuji_of(pai, @early_sutehai_set)
+    end
+    
+    define_feature("reach_urasuji") do |pai|
+      return urasuji_of(pai, to_pai_set([self.reach_pai]))
+    end
+    
+    # http://ja.wikipedia.org/wiki/%E7%AD%8B_(%E9%BA%BB%E9%9B%80)#.E9.96.93.E5.9B.9B.E9.96.93
     define_feature("aida4ken") do |pai|
       if pai.type == "t"
         return false
       else
         return ((2..5).include?(pai.number) &&
-              @prereach_sutehais_set.has_key?(Pai.new(pai.type, pai.number - 1)) &&
-              @prereach_sutehais_set.has_key?(Pai.new(pai.type, pai.number + 4))) ||
+              @prereach_sutehai_set.has_key?(Pai.new(pai.type, pai.number - 1)) &&
+              @prereach_sutehai_set.has_key?(Pai.new(pai.type, pai.number + 4))) ||
             ((5..8).include?(pai.number) &&
-              @prereach_sutehais_set.has_key?(Pai.new(pai.type, pai.number - 4)) &&
-              @prereach_sutehais_set.has_key?(Pai.new(pai.type, pai.number + 1)))
+              @prereach_sutehai_set.has_key?(Pai.new(pai.type, pai.number - 4)) &&
+              @prereach_sutehai_set.has_key?(Pai.new(pai.type, pai.number + 1)))
       end
     end
     
+    # http://ja.wikipedia.org/wiki/%E7%AD%8B_(%E9%BA%BB%E9%9B%80)#.E3.81.BE.E3.81.9F.E3.81.8E.E3.82.B9.E3.82.B8
+    define_feature("matagisuji") do |pai|
+      return matagisuji_of(pai, @prereach_sutehai_set)
+    end
+    
+    define_feature("late_matagisuji") do |pai|
+      return matagisuji_of(pai, @late_sutehai_set)
+    end
+    
+    # http://ja.wikipedia.org/wiki/%E7%AD%8B_(%E9%BA%BB%E9%9B%80)#.E7.96.9D.E6.B0.97.E3.82.B9.E3.82.B8
+    define_feature("senkisuji") do |pai|
+      return senkisuji_of(pai, @prereach_sutehai_set)
+    end
+    
+    define_feature("early_senkisuji") do |pai|
+      return senkisuji_of(pai, @early_sutehai_set)
+    end
+    
+    define_feature("outer_prereach_sutehai") do |pai|
+      return outer(pai, @prereach_sutehai_set)
+    end
+    
     define_feature("outer_early_sutehai") do |pai|
-      if pai.type == "t" || pai.number == 5
-        return false
-      else
-        inner_numbers = pai.number < 5 ? ((pai.number + 1)..5) : (5..(pai.number - 1))
-        return inner_numbers.any?(){ |n| @early_sutehais_set.has_key?(Pai.new(pai.type, n)) }
-      end
+      return outer(pai, @early_sutehai_set)
     end
     
     (0..3).each() do |n|
@@ -140,13 +178,125 @@ class Scene
     
     (1..3).each() do |i|
       define_method("visible>=%d" % i) do |pai|
-        visible_n_or_more(pai, i)
+        return visible_n_or_more(pai, i)
       end
     end
     
     (2..5).each() do |i|
       define_feature("%d<=n<=%d" % [i, 10 - i]) do |pai|
-        num_n_or_inner(pai, i)
+        return num_n_or_inner(pai, i)
+      end
+    end
+    
+    define_feature("dora") do |pai|
+      return @dora_set.has_key?(pai)
+    end
+    
+    define_feature("dora_suji") do |pai|
+      return suji_of(pai, @dora_set)
+    end
+    
+    define_feature("dora_matagi") do |pai|
+      return matagisuji_of(pai, @dora_set)
+    end
+    
+    (2..4).each() do |i|
+      define_feature("in_tehais>=#{i}") do |pai|
+        return @tehai_set[pai] >= i
+      end
+    end
+    
+    (2..4).each() do |i|
+      define_feature("suji_in_tehais>=#{i}") do |pai|
+        if pai.type == "t"
+          return false
+        else
+          return get_suji_numbers(pai).any?(){ |n| @tehai_set[Pai.new(pai.type, n)] >= i }
+        end
+      end
+    end
+    
+    (1..2).each() do |i|
+      (1..(i * 2)).each() do |j|
+        define_feature("+-#{i}_in_prereach_sutehais>=#{j}") do |pai|
+          n_or_more_of_neighbors_in_prereach_sutehais(pai, j, i)
+        end
+      end
+    end
+    
+    (1..2).each() do |i|
+      define_feature("#{i}_outer_prereach_sutehai") do |pai|
+        n_outer_prereach_sutehai(pai, i)
+      end
+    end
+    
+    (1..2).each() do |i|
+      define_feature("#{i}_inner_prereach_sutehai") do |pai|
+        n_outer_prereach_sutehai(pai, -i)
+      end
+    end
+    
+    (1..8).each() do |i|
+      define_feature("same_type_in_prereach>=#{i}") do |pai|
+        if pai.type == "t"
+          return false
+        else
+          num_same_type = (1..9).
+              select(){ |n| @prereach_sutehai_set.has_key?(Pai.new(pai.type, n)) }.
+              size
+          return num_same_type >= i
+        end
+      end
+    end
+    
+    define_feature("fanpai") do |pai|
+      return fanpai_fansu(pai) >= 1
+    end
+    
+    define_feature("ryenfonpai") do |pai|
+      return fanpai_fansu(pai) >= 2
+    end
+    
+    define_feature("sangenpai") do |pai|
+      return pai.type == "t" && pai.number >= 5
+    end
+    
+    define_feature("bakaze") do |pai|
+      return pai == @board.bakaze
+    end
+    
+    define_feature("jikaze") do |pai|
+      return pai == @reacher.jikaze
+    end
+    
+    def n_outer_prereach_sutehai(pai, n)
+      if pai.type == "t"
+        return false
+      elsif pai.number < 6 - n || pai.number > 4 + n
+        n_inner_pai = Pai.new(pai.type, pai.number < 5 ? pai.number + n : pai.number - n)
+        return @prereach_sutehai_set.include?(n_inner_pai)
+      else
+        return false
+      end
+    end
+    
+    def n_or_more_of_neighbors_in_prereach_sutehais(pai, n, neighbor_distance)
+      if pai.type == "t"
+        return false
+      else
+        num_neighbors =
+            ((pai.number - neighbor_distance)..(pai.number + neighbor_distance)).
+            select(){ |n| @prereach_sutehai_set.has_key?(Pai.new(pai.type, n)) }.
+            size
+        return num_neighbors >= n
+      end
+    end
+    
+    def suji_of(pai, target_pai_set)
+      if pai.type == "t"
+        return false
+      else
+        return get_suji_numbers(pai).any?(){ |n| target_pai_set.has_key?(Pai.new(pai.type, n)) }
       end
     end
     
@@ -174,12 +324,68 @@ class Scene
       return @visible_set[pai] >= n + 1
     end
     
+    def urasuji_of(pai, target_pai_set)
+      if pai.type == "t"
+        return false
+      else
+        urasuji_numbers = URASUJI_INV_MAP[pai.number]
+        return urasuji_numbers.any?(){ |n| target_pai_set.has_key?(Pai.new(pai.type, n)) }
+      end
+    end
+    
+    def senkisuji_of(pai, target_pai_set)
+      if pai.type == "t"
+        return false
+      else
+        senkisuji_numbers = SENKISUJI_INV_MAP[pai.number]
+        return senkisuji_numbers &&
+            senkisuji_numbers.any?(){ |n| target_pai_set.has_key?(Pai.new(pai.type, n)) }
+      end
+    end
+    
+    def matagisuji_of(pai, target_pai_set)
+      if pai.type == "t"
+        return false
+      else
+        matagisuji_numbers = []
+        if pai.number >= 4
+          matagisuji_numbers += [pai.number - 2, pai.number - 1]
+        end
+        if pai.number <= 6
+          matagisuji_numbers += [pai.number + 1, pai.number + 2]
+        end
+        return matagisuji_numbers.any?(){ |n| target_pai_set.has_key?(Pai.new(pai.type, n)) }
+      end
+    end
+    
+    def outer(pai, target_pai_set)
+      if pai.type == "t" || pai.number == 5
+        return false
+      else
+        inner_numbers = pai.number < 5 ? ((pai.number + 1)..5) : (5..(pai.number - 1))
+        return inner_numbers.any?(){ |n| target_pai_set.has_key?(Pai.new(pai.type, n)) }
+      end
+    end
+    
+    def reach_pai
+      return @prereach_sutehais[-1]
+    end
+    
+    def fanpai_fansu(pai)
+      if pai.type == "t" && pai.number >= 5
+        return 1
+      else
+        return (pai == @board.bakaze ? 1 : 0) + (pai == @reacher.jikaze ? 1 : 0)
+      end
+    end
+    
 end
 
 
 StoredKyoku = Struct.new(:scenes)
 StoredScene = Struct.new(:candidates)
-CriterionMetrics = Struct.new(:average_prob, :conf_interval, :num_samples)
+CriterionMetrics = Struct.new(
+    :average_prob, :conf_interval, :num_samples, :feature_name, :positive, :negative)
 
 
 class DangerEstimator
