@@ -261,6 +261,10 @@ class Scene
       return pai.type == "t" && pai.number >= 5
     end
     
+    define_feature("fonpai") do |pai|
+      return pai.type == "t" && pai.number < 5
+    end
+    
     define_feature("bakaze") do |pai|
       return pai == @board.bakaze
     end
@@ -384,13 +388,18 @@ end
 
 StoredKyoku = Struct.new(:scenes)
 StoredScene = Struct.new(:candidates)
-CriterionMetrics = Struct.new(
+DecisionNode = Struct.new(
     :average_prob, :conf_interval, :num_samples, :feature_name, :positive, :negative)
 
 
 class DangerEstimator
     
+    def initialize()
+      @min_gap = 0.0
+    end
+    
     attr_accessor(:verbose)
+    attr_accessor(:min_gap)
     
     def extract_features_from_files(input_paths, output_path)
       $stderr.puts("%d files." % input_paths.size)
@@ -475,10 +484,11 @@ class DangerEstimator
       calculate_probabilities(features_path, criteria)
     end
     
-    def generate_decision_tree(features_path, base_criterion = {}, base_metrics = nil)
+    def generate_decision_tree(features_path, base_criterion = {}, base_node = nil, root = nil)
       p [:generate_decision_tree, base_criterion]
       targets = {}
       criteria = []
+      criteria.push(base_criterion) if !base_node
       for name in Scene.feature_names
         next if base_criterion.has_key?(name)
         negative_criterion = base_criterion.merge({name => false})
@@ -486,11 +496,13 @@ class DangerEstimator
         targets[name] = [negative_criterion, positive_criterion]
         criteria.push(negative_criterion, positive_criterion)
       end
-      metrics_map = calculate_probabilities(features_path, criteria)
+      node_map = calculate_probabilities(features_path, criteria)
+      base_node = node_map[base_criterion] if !base_node
+      root = base_node if !root
       gaps = {}
       for name, (negative_criterion, positive_criterion) in targets
-        negative = metrics_map[negative_criterion]
-        positive = metrics_map[positive_criterion]
+        negative = node_map[negative_criterion]
+        positive = node_map[positive_criterion]
         next if !positive || !negative
         if positive.average_prob >= negative.average_prob
           gap = positive.conf_interval[0] - negative.conf_interval[1]
@@ -498,16 +510,35 @@ class DangerEstimator
           gap = negative.conf_interval[0] - positive.conf_interval[1]
         end
         p [name, gap]
-        gaps[name] = gap if gap > 0.0
+        gaps[name] = gap if gap > @min_gap
       end
       max_name = gaps.keys.max_by(){ |s| gaps[s] }
       p [:max_name, max_name]
       if max_name
-        return targets[max_name].
-            map(){ |c| generate_decision_tree(features_path, c, metrics_map[c]) }.
-            inject(:+)
-      else
-        return [[base_criterion, base_metrics]]
+        (negative_criterion, positive_criterion) = targets[max_name]
+        base_node.feature_name = max_name
+        base_node.negative = node_map[negative_criterion]
+        base_node.positive = node_map[positive_criterion]
+        render_decision_tree(root, "all")
+        generate_decision_tree(features_path, negative_criterion, base_node.negative, root)
+        generate_decision_tree(features_path, positive_criterion, base_node.positive, root)
+      end
+      return base_node
+    end
+    
+    def render_decision_tree(node, label, indent = 0)
+      puts("%s%s : %.2f [%.2f, %.2f] (%d samples)" %
+          ["  " * indent,
+           label,
+           node.average_prob * 100.0,
+           node.conf_interval[0] * 100.0,
+           node.conf_interval[1] * 100.0,
+           node.num_samples])
+      if node.feature_name
+        for value, child in [[false, node.negative], [true, node.positive]].
+            sort_by(){ |v, c| c.average_prob }
+          render_decision_tree(child, "%s = %p" % [node.feature_name, value], indent + 1)
+        end
       end
     end
     
@@ -537,16 +568,16 @@ class DangerEstimator
       for criterion in criteria
         kyoku_probs = @kyoku_probs_map[criterion]
         next if !kyoku_probs
-        result[criterion] = metrics = CriterionMetrics.new(
+        result[criterion] = node = DecisionNode.new(
             kyoku_probs.inject(:+) / kyoku_probs.size,
             confidence_interval(kyoku_probs),
             kyoku_probs.size)
         puts("%p\n  %.2f [%.2f, %.2f] (%d samples)" %
             [criterion,
-             metrics.average_prob * 100.0,
-             metrics.conf_interval[0] * 100.0,
-             metrics.conf_interval[1] * 100.0,
-             metrics.num_samples])
+             node.average_prob * 100.0,
+             node.conf_interval[0] * 100.0,
+             node.conf_interval[1] * 100.0,
+             node.num_samples])
       end
       return result
       
@@ -615,10 +646,11 @@ class DangerEstimator
 end
 
 
-@opts = OptionParser.getopts("v", "start:", "n:", "o:")
+@opts = OptionParser.getopts("v", "start:", "n:", "o:", "min_gap:")
 
 estimator = DangerEstimator.new()
 estimator.verbose = @opts["v"]
+estimator.min_gap = @opts["min_gap"].to_f() * 100.0
 
 action = ARGV.shift()
 case action
@@ -654,15 +686,8 @@ case action
     estimator.calculate_probabilities(ARGV[0], criteria)
     
   when "tree"
-    result = estimator.generate_decision_tree(ARGV[0])
-    for criterion, metrics in result.sort_by(){ |c, m| m.average_prob }
-      puts("%p\n  %.2f [%.2f, %.2f] (%d samples)" %
-          [criterion,
-           metrics.average_prob * 100.0,
-           metrics.conf_interval[0] * 100.0,
-           metrics.conf_interval[1] * 100.0,
-           metrics.num_samples])
-    end
+    root = estimator.generate_decision_tree(ARGV[0])
+    estimator.render_decision_tree(root, "all")
     
   else
     raise("unknown action")
