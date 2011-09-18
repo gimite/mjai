@@ -650,7 +650,7 @@ end
 
 estimator = DangerEstimator.new()
 estimator.verbose = @opts["v"]
-estimator.min_gap = @opts["min_gap"].to_f() * 100.0
+estimator.min_gap = @opts["min_gap"].to_f() / 100.0
 
 action = ARGV.shift()
 case action
@@ -687,6 +687,13 @@ case action
     
   when "tree"
     root = estimator.generate_decision_tree(ARGV[0])
+    estimator.render_decision_tree(root, "all")
+    if @opts["o"]
+      open(@opts["o"], "wb"){ |f| Marshal.dump(root, f) }
+    end
+    
+  when "dump_tree"
+    root = open(ARGV[0], "rb"){ |f| Marshal.load(f) }
     estimator.render_decision_tree(root, "all")
     
   else
