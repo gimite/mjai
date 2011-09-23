@@ -607,7 +607,7 @@ class DangerEstimator
     def aggregate_pribabilities(criteria)
       result = {}
       for criterion in criteria
-        kyoku_probs = @kyoku_probs_map[criterion]
+        kyoku_probs = @kyoku_probs_map[criterion.object_id]
         next if !kyoku_probs
         result[criterion] = node = DecisionNode.new(
             kyoku_probs.inject(:+) / kyoku_probs.size,
@@ -631,24 +631,24 @@ class DangerEstimator
         for feature_vector, hit in stored_scene.candidates
           for criterion, (positive_mask, negative_mask) in criterion_masks
             if match?(feature_vector, positive_mask, negative_mask)
-              pai_freqs[criterion] ||= Hash.new(0)
-              pai_freqs[criterion][hit] += 1
+              pai_freqs[criterion.object_id] ||= Hash.new(0)
+              pai_freqs[criterion.object_id][hit] += 1
             end
           end
           #p [pai, hit, feature_vector]
         end
-        for criterion, freqs in pai_freqs
+        for criterion_id, freqs in pai_freqs
           scene_prob = freqs[true].to_f() / (freqs[false] + freqs[true])
           #p [:scene_prob, criterion, scene_prob]
-          scene_prob_sums[criterion] += scene_prob
-          scene_counts[criterion] += 1
+          scene_prob_sums[criterion_id] += scene_prob
+          scene_counts[criterion_id] += 1
         end
       end
-      for criterion, count in scene_counts
-        kyoku_prob = scene_prob_sums[criterion] / count
+      for criterion_id, count in scene_counts
+        kyoku_prob = scene_prob_sums[criterion_id] / count
         #p [:kyoku_prob, criterion, kyoku_prob]
-        @kyoku_probs_map[criterion] ||= []
-        @kyoku_probs_map[criterion].push(kyoku_prob)
+        @kyoku_probs_map[criterion_id] ||= []
+        @kyoku_probs_map[criterion_id].push(kyoku_prob)
       end
     end
     
