@@ -6,6 +6,16 @@ require "with_progress"
 require "./mahjong"
 
 
+def bool_array_to_bit_vector(bool_array)
+  vector = 0
+  bool_array.reverse_each() do |value|
+    vector <<= 1
+    vector |= 1 if value
+  end
+  return vector
+end
+
+
 class Scene
     
     URASUJI_INV_MAP = {
@@ -81,7 +91,7 @@ class Scene
     
     # pai is without red.
     def feature_vector(pai)
-      return @@feature_names.map(){ |s| __send__(s, pai) }
+      return bool_array_to_bit_vector(@@feature_names.map(){ |s| __send__(s, pai) })
     end
     
     define_feature("all") do |pai|
@@ -464,9 +474,9 @@ class DangerEstimator
                 stored_scene.candidates.push([feature_vector, hit])
                 if self.verbose
                   puts("candidate %s: hit=%d, %s" % [
-                      pai, hit ? 1 : 0,
-                      (0...feature_vector.size).select(){ |i| feature_vector[i] }.
-                          map(){ |i| Scene.feature_names[i] }.join(" ")])
+                      pai,
+                      hit ? 1 : 0,
+                      feature_vector_to_str(feature_vector)])
                 end
               end
               stored_kyoku.scenes.push(stored_scene)
@@ -477,6 +487,11 @@ class DangerEstimator
         $stderr.puts("at #{input_path}")
         raise()
       end
+    end
+    
+    def feature_vector_to_str(feature_vector)
+      return (0...Scene.feature_names.size).select(){ |i| feature_vector[i] != 0 }.
+          map(){ |i| Scene.feature_names[i] }.join(" ")
     end
     
     def calculate_single_probabilities(features_path)
@@ -543,8 +558,31 @@ class DangerEstimator
     end
     
     def calculate_probabilities(features_path, criteria)
+      create_kyoku_probs_map(features_path, criteria)
+      aggregate_pribabilities(criteria)
+    end
+    
+    def create_kyoku_probs_map(features_path, criteria)
       
       @kyoku_probs_map = {}
+      
+      criterion_masks = {}
+      for criterion in criteria
+        positive_ary = [false] * Scene.feature_names.size
+        negative_ary = [true] * Scene.feature_names.size
+        for name, value in criterion
+          index = Scene.feature_names.index(name)
+          if value
+            positive_ary[index] = true
+          else
+            negative_ary[index] = false
+          end
+        end
+        criterion_masks[criterion] = [
+          bool_array_to_bit_vector(positive_ary),
+          bool_array_to_bit_vector(negative_ary),
+        ]
+      end
       
       open(features_path, "rb") do |f|
         meta_data = Marshal.load(f)
@@ -556,7 +594,7 @@ class DangerEstimator
             while true
               stored_kyokus = Marshal.load(f)
               for stored_kyoku in stored_kyokus
-                update_metrics_for_kyoku(stored_kyoku, criteria)
+                update_metrics_for_kyoku(stored_kyoku, criterion_masks)
               end
             end
           rescue EOFError
@@ -564,6 +602,9 @@ class DangerEstimator
         end
       end
       
+    end
+    
+    def aggregate_pribabilities(criteria)
       result = {}
       for criterion in criteria
         kyoku_probs = @kyoku_probs_map[criterion]
@@ -580,17 +621,16 @@ class DangerEstimator
              node.num_samples])
       end
       return result
-      
     end
     
-    def update_metrics_for_kyoku(stored_kyoku, criteria)
+    def update_metrics_for_kyoku(stored_kyoku, criterion_masks)
       scene_prob_sums = Hash.new(0.0)
       scene_counts = Hash.new(0)
       for stored_scene in stored_kyoku.scenes
         pai_freqs = {}
         for feature_vector, hit in stored_scene.candidates
-          for criterion in criteria
-            if match?(feature_vector, criterion)
+          for criterion, (positive_mask, negative_mask) in criterion_masks
+            if match?(feature_vector, positive_mask, negative_mask)
               pai_freqs[criterion] ||= Hash.new(0)
               pai_freqs[criterion][hit] += 1
             end
@@ -612,8 +652,9 @@ class DangerEstimator
       end
     end
     
-    def match?(feature_vector, criterion)
-      return criterion.all?(){ |k, v| feature_vector[Scene.feature_names.index(k)] == v }
+    def match?(feature_vector, positive_mask, negative_mask)
+      return (feature_vector & positive_mask) == positive_mask &&
+          (feature_vector | negative_mask) == negative_mask
     end
     
     # Uses bootstrap resampling.
@@ -645,6 +686,19 @@ class DangerEstimator
 
 end
 
+INTERESTING_CRITERIA = [
+  
+  {"tsupai" => false, "suji" => false},
+  {"tsupai" => false, "suji" => false, "urasuji" => true},
+  {"tsupai" => false, "suji" => false, "aida4ken" => true},
+  
+  {"tsupai" => false, "suji" => false, "5<=n<=5" => false},
+  {"tsupai" => false, "suji" => false, "outer_early_sutehai" => true},
+  
+  {"tsupai" => false, "suji" => true},
+  {"tsupai" => false, "suji" => true, "reach_suji" => true},
+  
+]
 
 @opts = OptionParser.getopts("v", "start:", "n:", "o:", "min_gap:")
 
@@ -670,20 +724,10 @@ case action
     estimator.calculate_single_probabilities(ARGV[0])
     
   when "interesting"
-    criteria = [
-      
-      {:tsupai => false, :suji => false},
-      {:tsupai => false, :suji => false, :urasuji => true},
-      {:tsupai => false, :suji => false, :aida4ken => true},
-      
-      {:tsupai => false, :suji => false, :num_46_or_outer => true},
-      {:tsupai => false, :suji => false, :outer_early_sutehai => true},
-      
-      {:tsupai => false, :suji => true},
-      {:tsupai => false, :suji => true, :reach_suji => true},
-      
-    ]
-    estimator.calculate_probabilities(ARGV[0], criteria)
+    estimator.calculate_probabilities(ARGV[0], INTERESTING_CRITERIA)
+    
+  when "benchmark"
+    estimator.create_kyoku_probs_map(ARGV[0], INTERESTING_CRITERIA)
     
   when "tree"
     root = estimator.generate_decision_tree(ARGV[0])
