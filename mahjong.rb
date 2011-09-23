@@ -84,6 +84,10 @@ class Pai
       return @type == "t" || @number == 1 || @number == 9
     end
     
+    def sangenpai?
+      return @type == "t" && (5..7).include?(@number)
+    end
+    
     def data
       return [@type, @number, @red ? 1 : 0]
     end
@@ -129,39 +133,23 @@ class Pai
 end
 
 
-# 副露
-class Furo
+#pais = Pai.parse_pais("123m4p5pr6p789sESWNPFC")
+#p pais
+#p pais.map(){ |h| [h.type, h.number, h.red?] }
+
+
+module WithFields
     
-    PARAM_NAMES = [:type, :taken, :consumed, :target]
-    
-    PARAM_NAMES.each() do |name|
-      define_method(name) do
-        return @params[name]
-      end
-    end
-    
-    def initialize(params)
-      @params = params
-    end
-    
-    def pais
-      return (self.taken ? [self.taken] : []) + self.consumed
-    end
-    
-    def to_s()
-      if self.type == :ankan
-        return '[# %s %s #]' % self.consumed[0, 2]
-      else
-        return "[%s(%d)/%s]" % [self.taken, self.target.id, self.consumed.join(" ")]
+    def define_fields(names)
+      @@field_names = names
+      @@field_names.each() do |name|
+        define_method(name) do
+          return @fields[name]
+        end
       end
     end
     
 end
-
-
-#pais = Pai.parse_pais("123m4p5pr6p789sESWNPFC")
-#p pais
-#p pais.map(){ |h| [h.type, h.number, h.red?] }
 
 
 class Serializable
@@ -229,6 +217,32 @@ class Serializable
         hash[name.to_s()] = plain
       end
       return JSON.dump(hash)
+    end
+    
+end
+
+
+# 副露
+class Furo
+    
+    extend(WithFields)
+    
+    define_fields([:type, :taken, :consumed, :target])
+    
+    def initialize(fields)
+      @fields = fields
+    end
+    
+    def pais
+      return (self.taken ? [self.taken] : []) + self.consumed
+    end
+    
+    def to_s()
+      if self.type == :ankan
+        return '[# %s %s #]' % self.consumed[0, 2]
+      else
+        return "[%s(%d)/%s]" % [self.taken, self.target.id, self.consumed.join(" ")]
+      end
     end
     
 end

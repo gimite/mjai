@@ -94,10 +94,6 @@ class Scene
       return bool_array_to_bit_vector(@@feature_names.map(){ |s| __send__(s, pai) })
     end
     
-    define_feature("all") do |pai|
-      return true
-    end
-    
     define_feature("tsupai") do |pai|
       return pai.type == "t"
     end
