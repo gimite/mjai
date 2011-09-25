@@ -1,3 +1,5 @@
+require "set"
+require "forwardable"
 require "./mahjong"
 
 
@@ -19,17 +21,33 @@ class Hora
       :kantsu => 8,
     }
     
+    GREEN_PAIS = Set.new(Pai.parse_pais("23468sF"))
+    CHURENPOTON_NUMBERS = [1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9]
+    YAKUMAN_FAN = 100
+    
     class Candidate
         
         def initialize(hora, combination, taken_index)
           
           @hora = hora
           @combination = combination
+          @all_pais = hora.all_pais.map(){ |pai| pai.remove_red() }
+          
           @mentsus = []
           @janto = nil
           total_taken = 0
           if combination == :chitoitsu
-            raise("not implemented")
+            @machi = :tanki
+            for pai in @all_pais.uniq()
+              mentsu = Mentsu.new(:toitsu, :an, [pai, pai])
+              if pai.same_symbol?(hora.taken)
+                @janto = mentsu
+              else
+                @mentsus.push(mentsu)
+              end
+            end
+          elsif combination == :kokushimuso
+            @machi = :tanki
           else
             for mentsu_type, mentsu_pais in combination
               num_this_taken = mentsu_pais.select(){ |pai| pai.same_symbol?(hora.taken) }.size
@@ -38,7 +56,10 @@ class Hora
                 raise("should not happen") if @janto
                 @janto = Mentsu.new(:toitsu, nil, mentsu_pais)
               else
-                @mentsus.push(Mentsu.new(mentsu_type, has_taken ? :min : :an, mentsu_pais))
+                @mentsus.push(Mentsu.new(
+                    mentsu_type,
+                    has_taken && hora.hora_type == :ron ? :min : :an,
+                    mentsu_pais))
               end
               if has_taken
                 case mentsu_type
@@ -64,30 +85,33 @@ class Hora
             @mentsus.push(Mentsu.new(
                 FURO_TYPE_TO_MENTSU_TYPE[furo.type],
                 furo.type == :ankan ? :an : :min,
-                (furo.consumed + [furo.taken]).sort()))
+                furo.pais.map(){ |pai| pai.remove_red() }.sort()))
           end
           p @mentsus
           p @janto
           p @machi
+          
           get_yakus()
           p @yakus
-          @fans = @yakus.map(){ |y, f| f }.inject(0, :+)
-          p [:fans, @fans]
+          @fan = @yakus.map(){ |y, f| f }.inject(0, :+)
+          p [:fan, @fan]
           @fu = get_fu()
           p [:fu, @fu]
           
-          if @fans >= 13
+          if @fan >= YAKUMAN_FAN
+            @base_points = 8000 * (@fan / YAKUMAN_FAN)
+          elsif @fan >= 13
             @base_points = 8000
-          elsif @fans >= 11
+          elsif @fan >= 11
             @base_points = 6000
-          elsif @fans >= 8
+          elsif @fan >= 8
             @base_points = 4000
-          elsif @fans >= 6
+          elsif @fan >= 6
             @base_points = 3000
-          elsif @fans >= 5 || (@fans >= 4 && @fu >= 40) || (@fans >= 3 && @fu >= 70)
+          elsif @fan >= 5 || (@fan >= 4 && @fu >= 40) || (@fan >= 3 && @fu >= 70)
             @base_points = 2000
           else
-            @base_points = @fu * (2 ** (@fans + 2))
+            @base_points = @fu * (2 ** (@fan + 2))
           end
           
           if @hora.hora_type == :ron
@@ -108,7 +132,7 @@ class Hora
           
         end
         
-        attr_reader(:points, :oya_payment, :ko_payment)
+        attr_reader(:points, :oya_payment, :ko_payment, :yakus, :fan, :fu)
         
         def ceil_points(points)
           return (points / 100.0).ceil * 100
@@ -118,6 +142,51 @@ class Hora
         def get_yakus()
           
           @yakus = []
+          
+          # 役満
+          if @hora.first_turn && @hora.hora_type == :tsumo && @hora.oya
+            add_yaku(:tenho, YAKUMAN_FAN, 0)
+          end
+          if @hora.first_turn && @hora.hora_type == :tsumo && !@hora.oya
+            add_yaku(:chiho, YAKUMAN_FAN, 0)
+          end
+          if @combination == :kokushimuso
+            add_yaku(:kokushimuso, YAKUMAN_FAN, 0)
+            return
+          end
+          if self.num_sangenpais == 3
+            add_yaku(:daisangen, YAKUMAN_FAN, YAKUMAN_FAN)
+          end
+          if self.n_anko?(4)
+            add_yaku(:suanko, YAKUMAN_FAN, 0)
+          end
+          if @all_pais.all?(){ |pai| pai.type == "t" }
+            add_yaku(:tsuiso, YAKUMAN_FAN, YAKUMAN_FAN)
+          end
+          if self.ryuiso?
+            add_yaku(:ryuiso, YAKUMAN_FAN, YAKUMAN_FAN)
+          end
+          if self.chinroto?
+            add_yaku(:chinroto, YAKUMAN_FAN, YAKUMAN_FAN)
+          end
+          if self.daisushi?
+            add_yaku(:daisushi, YAKUMAN_FAN, YAKUMAN_FAN)
+          end
+          if self.shosushi?
+            add_yaku(:shosushi, YAKUMAN_FAN, YAKUMAN_FAN)
+          end
+          if self.n_kantsu?(4)
+            add_yaku(:sukantsu, YAKUMAN_FAN, YAKUMAN_FAN)
+          end
+          if self.churenpoton?
+            add_yaku(:churenpoton, YAKUMAN_FAN, 0)
+          end
+          return if !@yakus.empty?
+          
+          # ドラ
+          add_yaku(:dora, @hora.num_doras, @hora.num_doras)
+          add_yaku(:uradora, @hora.num_uradoras, @hora.num_uradoras)
+          add_yaku(:akadora, @hora.num_akadoras, @hora.num_akadoras)
           
           # 一飜
           if @hora.reach
@@ -129,7 +198,7 @@ class Hora
           if self.menzen? && @hora.hora_type == :tsumo
             add_yaku(:menzenchin_tsumoho, 1, 0)
           end
-          if @hora.pais.all?(){ |pai| !pai.yaochu? }
+          if @all_pais.all?(){ |pai| !pai.yaochu? }
             add_yaku(:tanyaochu, 1, 1)
           end
           if self.pinfu?
@@ -139,14 +208,14 @@ class Hora
             add_yaku(:ipeko, 1, 0)
           end
           add_yaku(:sangenpai, self.num_sangenpais, self.num_sangenpais)
-          if @mentsus.any?(){ |m| m.pais[0] == @hora.jikaze }
-            add_yaku(:jikaze, 1, 1)
-          end
-          if @mentsus.any?(){ |m| m.pais[0] == @hora.bakaze }
+          if self.bakaze?
             add_yaku(:bakaze, 1, 1)
           end
+          if self.jikaze?
+            add_yaku(:jikaze, 1, 1)
+          end
           if @hora.rinshan
-            add_yaku(:rinshan, 1, 1)
+            add_yaku(:rinshankaiho, 1, 1)
           end
           if @hora.chankan
             add_yaku(:chankan, 1, 1)
@@ -168,13 +237,16 @@ class Hora
           if self.honchantaiyao?
             add_yaku(:honchantaiyao, 2, 1)
           end
+          if @combination == :chitoitsu
+            add_yaku(:chitoitsu, 2, 0)
+          end
           if @mentsus.all?(){ |m| [:kotsu, :kantsu].include?(m.type) }
             add_yaku(:toitoiho, 2, 2)
           end
           if self.n_anko?(3)
             add_yaku(:sananko, 2, 2)
           end
-          if @hora.pais.all?(){ |pai| pai.yaochu? }
+          if @all_pais.all?(){ |pai| pai.yaochu? }
             add_yaku(:honroto, 2, 2)
             delete_yaku(:honchantaiyao)
           end
@@ -189,6 +261,7 @@ class Hora
           end
           if @hora.double_reach
             add_yaku(:double_reach, 2, 0)
+            delete_yaku(:reach)
           end
           
           # 三飜
@@ -210,13 +283,11 @@ class Hora
             delete_yaku(:honiso)
           end
           
-          # TODO 役満
-          
         end
         
-        def add_yaku(name, menzen_fans, kui_fans)
-          fans = self.menzen? ? menzen_fans : kui_fans
-          @yakus.push([name, fans]) if fans > 0
+        def add_yaku(name, menzen_fan, kui_fan)
+          fan = self.menzen? ? menzen_fan : kui_fan
+          @yakus.push([name, fan]) if fan > 0
         end
         
         def delete_yaku(name)
@@ -224,30 +295,63 @@ class Hora
         end
         
         def get_fu()
-          fu = 20
-          fu += 10 if self.menzen? && @hora.hora_type == :ron
-          fu += 2 if @hora.hora_type == :tsumo
-          for mentsu in @mentsus
-            mfu = BASE_FU_MAP[mentsu.type]
-            mfu *= 2 if mentsu.pais[0].yaochu?
-            mfu *= 2 if mentsu.visibility == :an
-            p [:mfu, mfu]
-            fu += mfu
+          case @combination
+            when :chitoitsu
+              return 25
+            when :kokushimuso
+              return 20
+            else
+              fu = 20
+              fu += 10 if self.menzen? && @hora.hora_type == :ron
+              fu += 2 if @hora.hora_type == :tsumo
+              for mentsu in @mentsus
+                mfu = BASE_FU_MAP[mentsu.type]
+                mfu *= 2 if mentsu.pais[0].yaochu?
+                mfu *= 2 if mentsu.visibility == :an
+                p [:mfu, mfu]
+                fu += mfu
+              end
+              fu += fanpai_fan(@janto.pais[0]) * 2
+              fu += 2 if [:kanchan, :penchan, :tanki].include?(@machi)
+              p [:raw_fu, fu]
+              return (fu / 10.0).ceil * 10
           end
-          fu += fanpai_fans(@janto.pais[0]) * 2
-          fu += 2 if [:kanchan, :penchan, :tanki].include?(@machi)
-          p [:raw_fu, fu]
-          return (fu / 10.0).ceil * 10
         end
         
         def menzen?
-          return @hora.furos.empty?
+          return @hora.furos.select(){ |f| f.type != :ankan }.empty?
+        end
+        
+        def ryuiso?
+          return @all_pais.all?(){ |pai| GREEN_PAIS.include?(pai) }
+        end
+        
+        def chinroto?
+          return @all_pais.all?(){ |pai| pai.type != "t" && [1, 9].include?(pai.number) }
+        end
+        
+        def daisushi?
+          return @mentsus.all?(){ |m| [:kotsu, :kantsu].include?(m.type) && m.pais[0].fonpai? }
+        end
+        
+        def shosushi?
+          fonpai_kotsus = @mentsus.
+              select(){ |m| [:kotsu, :kantsu].include?(m.type) && m.pais[0].fonpai? }
+          return fonpai_kotsus.size == 3 && @janto.pais[0].fonpai?
+        end
+        
+        def churenpoton?
+          return false if !self.chiniso?
+          all_numbers = @all_pais.map(){ |pai| pai.number }.sort()
+          return (1..9).any?() do |i|
+            all_numbers == (CHURENPOTON_NUMBERS + [i]).sort()
+          end
         end
         
         def pinfu?
           return @mentsus.all?(){ |m| m.type == :shuntsu } &&
               @machi == :ryanmen &&
-              fanpai_fans(@janto.pais[0]) == 0
+              fanpai_fan(@janto.pais[0]) == 0
         end
         
         def ipeko?
@@ -257,6 +361,14 @@ class Hora
                   !m2.equal?(m1) && m2.type == :shuntsu && m2.pais[0].same_symbol?(m1.pais[0])
                 end
           end
+        end
+        
+        def jikaze?
+          @mentsus.any?(){ |m| [:kotsu, :kantsu].include?(m.type) && m.pais[0] == @hora.jikaze }
+        end
+        
+        def bakaze?
+          @mentsus.any?(){ |m| [:kotsu, :kantsu].include?(m.type) && m.pais[0] == @hora.bakaze }
         end
         
         def sanshoku?(types)
@@ -299,7 +411,7 @@ class Hora
         
         def honiso?
           return ["m", "p", "s"].any?() do |t|
-            (@mentsus + [@janto]).all?(){ |m| [t, "t"].include?(m.pais[0].type) }
+            @all_pais.all?(){ |pai| [t, "t"].include?(pai.type) }
           end
         end
         
@@ -320,42 +432,51 @@ class Hora
         
         def chiniso?
           return ["m", "p", "s"].any?() do |t|
-            (@mentsus + [@janto]).all?(){ |m| m.pais[0].type == t }
+            @all_pais.all?(){ |pai| pai.type == t }
           end
         end
         
         def num_sangenpais
-          return @mentsus.select(){ |m| m.pais[0].sangenpai? }.size
+          return @mentsus.
+              select(){ |m| m.pais[0].sangenpai? && [:kotsu, :kantsu].include?(m.type) }.
+              size
         end
         
-        def fanpai_fans(pai)
+        def fanpai_fan(pai)
           if pai.sangenpai?
             return 1
           else
-            fans = 0
-            fans += 1 if pai == @hora.bakaze
-            fans += 1 if pai == @hora.jikaze
-            return fans
+            fan = 0
+            fan += 1 if pai == @hora.bakaze
+            fan += 1 if pai == @hora.jikaze
+            return fan
           end
         end
         
     end
     
     extend(WithFields)
+    extend(Forwardable)
     
     define_fields([
-      :tehais, :furos, :taken, :hora_type, :bakaze, :jikaze, :reach, :double_reach, :ippatsu,
-      :rinshan, :haitei,
-      :chankan,
-      :oya,
+      :tehais, :furos, :taken, :hora_type,
+      :oya, :bakaze, :jikaze, :doras, :uradoras,
+      :reach, :double_reach, :ippatsu,
+      :rinshan, :haitei, :first_turn, :chankan,
     ])
     
     def initialize(params)
       
       @fields = params
-      @pais = self.tehais + [self.taken]
-      num_same_as_taken = @pais.select(){ |pai| pai.same_symbol?(self.taken) }.size
-      @shanten = ShantenCounter.new(@pais, -1)
+      @free_pais = self.tehais + [self.taken]
+      @all_pais = @free_pais + self.furos.map(){ |f| f.pais }.flatten()
+      
+      @num_doras = count_doras(self.doras)
+      @num_uradoras = count_doras(self.uradoras)
+      @num_akadoras = @all_pais.select(){ |pai| pai.red? }.size
+      
+      num_same_as_taken = @free_pais.select(){ |pai| pai.same_symbol?(self.taken) }.size
+      @shanten = ShantenCounter.new(@free_pais, -1)
       raise("not hora") if @shanten.shanten > -1
       unflatten_cands = @shanten.combinations.map() do |c|
         (0...num_same_as_taken).map(){ |i| Candidate.new(self, c, i) }
@@ -365,20 +486,30 @@ class Hora
       
     end
     
-    attr_reader(:pais)
+    attr_reader(:free_pais, :all_pais, :num_doras, :num_uradoras, :num_akadoras)
+    def_delegators(:@best_candidate, :points, :oya_payment, :ko_payment, :yakus, :fan, :fu)
+    
+    def count_doras(target_doras)
+      return @all_pais.map(){ |pai| target_doras.select(){ |d| d.same_symbol?(pai) }.size }.
+          inject(0, :+)
+    end
     
 end
 
+=begin
 p 1
-Hora.new({
+hora = Hora.new({
   :tehais => Pai.parse_pais("123m456p777sP"),
   :furos => [Furo.new({:type => :pon, :taken => Pai.new("E"), :consumed => Pai.parse_pais("EE")})],
   :taken => Pai.new("P"),
   :hora_type => :ron,
   :jikaze => Pai.new("S"),
   :bakaze => Pai.new("E"),
+  :doras => [],
+  :uradoras => [],
   :oya => false,
 })
+p [:final, hora.points, hora.oya_payment, hora.ko_payment, hora.yakus, hora.fan, hora.fu]
 puts
 
 p 2
@@ -387,6 +518,8 @@ Hora.new({
   :furos => [],
   :taken => Pai.new("5s"),
   :hora_type => :ron,
+  :doras => [],
+  :uradoras => [],
   :oya => false,
 })
 puts
@@ -397,6 +530,8 @@ Hora.new({
   :furos => [],
   :taken => Pai.new("5s"),
   :hora_type => :tsumo,
+  :doras => [],
+  :uradoras => [],
   :oya => false,
 })
 puts
@@ -411,6 +546,8 @@ Hora.new({
   :hora_type => :ron,
   :jikaze => Pai.new("S"),
   :bakaze => Pai.new("S"),
+  :doras => [],
+  :uradoras => [],
   :oya => true,
 })
 puts
@@ -425,6 +562,8 @@ Hora.new({
   :hora_type => :ron,
   :jikaze => Pai.new("E"),
   :bakaze => Pai.new("S"),
+  :doras => [],
+  :uradoras => [],
   :oya => false,
 })
 puts
@@ -435,6 +574,35 @@ Hora.new({
   :furos => [],
   :taken => Pai.new("7m"),
   :hora_type => :ron,
+  :doras => [],
+  :uradoras => [],
   :oya => false,
 })
 puts
+
+p 6
+Hora.new({
+  :tehais => Pai.parse_pais("123m4s5sr6s12378pWW"),
+  :furos => [],
+  :taken => Pai.new("9p"),
+  :hora_type => :ron,
+  :doras => Pai.parse_pais("1m"),
+  :uradoras => Pai.parse_pais("W"),
+  :reach => true,
+  :oya => false,
+})
+puts
+
+p 7
+Hora.new({
+  :tehais => Pai.parse_pais("22446688m22446s"),
+  :furos => [],
+  :taken => Pai.new("6s"),
+  :hora_type => :ron,
+  :doras => [],
+  :uradoras => [],
+  :reach => true,
+  :oya => false,
+})
+puts
+=end

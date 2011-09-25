@@ -84,6 +84,10 @@ class Pai
       return @type == "t" || @number == 1 || @number == 9
     end
     
+    def fonpai?
+      return @type == "t" && (1..4).include?(@number)
+    end
+    
     def sangenpai?
       return @type == "t" && (5..7).include?(@number)
     end
