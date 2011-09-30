@@ -134,6 +134,10 @@ class Hora
         
         attr_reader(:points, :oya_payment, :ko_payment, :yakus, :fan, :fu)
         
+        def valid?
+          return @yakus.select(){ |n, f| ![:dora, :uradora, :akadora].include?(n) }.empty?
+        end
+        
         def ceil_points(points)
           return (points / 100.0).ceil * 100
         end
@@ -487,7 +491,7 @@ class Hora
     end
     
     attr_reader(:free_pais, :all_pais, :num_doras, :num_uradoras, :num_akadoras)
-    def_delegators(:@best_candidate, :points, :oya_payment, :ko_payment, :yakus, :fan, :fu)
+    def_delegators(:@best_candidate, :valid?, :points, :oya_payment, :ko_payment, :yakus, :fan, :fu)
     
     def count_doras(target_doras)
       return @all_pais.map(){ |pai| target_doras.select(){ |d| d.same_symbol?(pai) }.size }.

@@ -90,6 +90,7 @@ class Scene
     end
     
     # pai is without red.
+    # Use bit vector to make match? faster.
     def feature_vector(pai)
       return bool_array_to_bit_vector(@@feature_names.map(){ |s| __send__(s, pai) })
     end
@@ -183,7 +184,7 @@ class Scene
     end
     
     (1..3).each() do |i|
-      define_method("visible>=%d" % i) do |pai|
+      define_feature("visible>=%d" % i) do |pai|
         return visible_n_or_more(pai, i)
       end
     end
@@ -627,6 +628,7 @@ class DangerEstimator
         for feature_vector, hit in stored_scene.candidates
           for criterion, (positive_mask, negative_mask) in criterion_masks
             if match?(feature_vector, positive_mask, negative_mask)
+              # Uses object_id as key for efficiency.
               pai_freqs[criterion.object_id] ||= Hash.new(0)
               pai_freqs[criterion.object_id][hit] += 1
             end

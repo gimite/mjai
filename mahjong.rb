@@ -308,7 +308,7 @@ class Player
       case action.type
         when :start_game
           @id = action.id
-          @name = action.names[@id]
+          @name = action.names[@id] if action.names
         when :start_kyoku
           @tehais = []
           @furos = []
@@ -536,6 +536,7 @@ class Board
     attr_reader(:oya)
     attr_reader(:dora_markers)  # ドラ表示牌
     attr_reader(:previous_action)
+    attr_reader(:all_pais)
     attr_accessor(:last)  # kari
     
     def on_action(&block)
@@ -650,7 +651,8 @@ class ActiveBoard < Board
         @pipais = @all_pais.shuffle()
         @pipais.shuffle!()
         @wanpais = @pipais.pop(14)
-        do_action(Action.new({:type => :start_kyoku, :oya => @next_oya}))
+        dora_marker = @wanpais.pop()
+        do_action(Action.new({:type => :start_kyoku, :oya => @next_oya, :dora_marker => dora_marker}))
         for player in @players
           do_action(Action.new(
               {:type => :haipai, :actor => player, :pais => @pipais.pop(13) }))
@@ -712,6 +714,10 @@ class ActiveBoard < Board
       end
     end
     
+    def num_pipais
+      return @pipais.size
+    end
+    
 end
 
 
@@ -756,7 +762,7 @@ class ShantenCounter
       :single => 1,
     }
     
-    def initialize(pais, max_shanten = nil)
+    def initialize(pais, max_shanten = nil, types = [:normal, :chitoitsu, :kokushimuso])
       
       @pais = pais
       @max_shanten = max_shanten
@@ -767,11 +773,10 @@ class ShantenCounter
       end
       
       @cache = {}
-      results = [
-        count_normal(@pai_set, []),
-        count_chitoi(@pai_set),
-        count_kokushi(@pai_set),
-      ]
+      results = []
+      results.push(count_normal(@pai_set, [])) if types.include?(:normal)
+      results.push(count_chitoi(@pai_set)) if types.include?(:chitoitsu)
+      results.push(count_kokushi(@pai_set)) if types.include?(:kokushimuso)
       
       @shanten = 1.0/0.0
       @combinations = []
