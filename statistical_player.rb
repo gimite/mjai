@@ -5,14 +5,21 @@ require "./min_required_pais"
 class StatisticalPlayer < Player
     
     def respond_to_action(action)
-      case action.type
+      
+      if action.actor == self
         
-        when :tsumo, :chi, :pon
-          if action.actor == self
-            
+        case action.type
+          
+          when :tsumo, :chi, :pon, :reach
+              
             current_shanten = ShantenCounter.new(self.tehais, nil, [:normal]).shanten
-            if action.type == :tsumo && current_shanten == -1
-              return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
+            if action.type == :tsumo
+              case current_shanten
+                when -1
+                  return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
+                when 0
+                  return create_action({:type => :reach})
+              end
             end
             p [:shanten, current_shanten]
             
@@ -24,8 +31,8 @@ class StatisticalPlayer < Player
             end
             visible_set = to_pai_set(visible)
             
-            max_prob = -1.0/0.0
-            max_pai_index = nil
+            targets = []
+            total_seeds = 0
             for pai in self.tehais.uniq()
               idx = self.tehais.index(pai)
               remains = self.tehais.dup()
@@ -34,8 +41,17 @@ class StatisticalPlayer < Player
               if shanten.shanten != current_shanten
                 next
               end
-              prob = get_hora_prob(shanten, visible_set, visible.size)
-              p [:hora_prob, pai, prob]
+              targets.push([idx, shanten])
+              total_seeds += MinRequiredPais.new(shanten, 1).seed_mentsus_candidates.size
+            end
+            num_allowed_extra = total_seeds >= 400 ? 0 : 1
+            p [:num_allowed_extra, num_allowed_extra, total_seeds]
+            
+            max_prob = -1.0/0.0
+            max_pai_index = nil
+            for idx, shanten in targets
+              prob = get_hora_prob(shanten, visible_set, visible.size, num_allowed_extra)
+              p [:hora_prob, self.tehais[idx], prob]
               if prob > max_prob
                 max_prob = prob
                 max_pai_index = idx
@@ -49,25 +65,28 @@ class StatisticalPlayer < Player
             
             return create_action({:type => :dahai, :pai => self.tehais[max_pai_index]})
             
-          end
-          
-        when :dahai
-          if action.actor != self
-            if ShantenCounter.new(self.tehais + [action.pai], -1) == -1
-              return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
+        end
+        
+      else  # action.actor != self
+        
+        case action.type
+          when :dahai
+            if action.actor != self
+              if ShantenCounter.new(self.tehais + [action.pai], -1).shanten == -1
+                return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
+              end
             end
-          end
-          
+        end
+        
       end
       
       return nil
     end
     
-    def get_hora_prob(shanten, visible_set, num_visible)
+    def get_hora_prob(shanten, visible_set, num_visible, num_allowed_extra)
       num_invisible = board.all_pais.size - num_visible
       num_tsumos = board.num_pipais / 4
       no_hora_prob = 1.0
-      num_allowed_extra = shanten.shanten <= 3 ? 1 : 0
       for required_pais in MinRequiredPais.new(shanten, num_allowed_extra).candidates
         all_tsumo_prob = 1.0
         for pai in required_pais

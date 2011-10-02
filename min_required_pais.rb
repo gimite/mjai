@@ -12,10 +12,15 @@ class MinRequiredPais
         @shanten = ShantenCounter.new(pais_or_shanten, nil, [:normal])
       end
       @max_required_pais = @shanten.shanten + 1 + num_allowed_extra
-      seed_mentsus_cands = get_seed_mentsus_candidates()
-      p [:seed_mentsus_cands, seed_mentsus_cands.size]
+      @seed_mentsus_candidates = get_seed_mentsus_candidates()
+      p [:@seed_mentsus_candidates, @seed_mentsus_candidates.size]
+    end
+    
+    attr_reader(:seed_mentsus_candidates)
+    
+    def candidates
       all_candidates = []
-      for seed_mentsus in seed_mentsus_cands
+      for seed_mentsus in @seed_mentsus_candidates
         #pp [:seed, seed_mentsus]
         for pais in get_candidates(seed_mentsus, [], [])
           all_candidates.push(pais.sort())
@@ -25,9 +30,8 @@ class MinRequiredPais
         !all_candidates.any?(){ |ps2| ps2.size < ps1.size && (ps2 - ps1).empty? }
       end
       @candidates = Set.new(filtered_candidates)
+      return @candidates
     end
-    
-    attr_reader(:candidates)
     
     def get_seed_mentsus_candidates()
       result = []
@@ -67,6 +71,15 @@ class MinRequiredPais
           inject(0, :+)
       return result
     end
+    
+    MENTSU_SIZES = {
+      :kotsu => 3,
+      :shuntsu => 3,
+      :toitsu => 2,
+      :ryanpen => 2,
+      :kanta => 2,
+      :single => 1,
+    }
     
     def get_candidates(remain_mentsus, created_mentsu_types, required_pais)
       #pp [:get_candidates, remain_mentsus, created_mentsu_types, required_pais]
@@ -122,6 +135,21 @@ class MinRequiredPais
         end
         return result
       end
+    end
+    
+    def get_shanten(mentsu_types)
+      shanten = 0
+      if janto_idx = mentsu_types.index(:toitsu)
+      elsif janto_idx = mentsu_types.index(:single)
+        shanten += 1
+      else
+        # TODO 刻子や順子が頭に変わることも考える必要あり?
+      end
+      if janto_idx
+        mentsu_types = mentsu_types.dup()
+        mentsu_types.delete_at(janto_idx)
+      end
+      # TODO
     end
     
     # 6.48 -> 1.78

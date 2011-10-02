@@ -574,6 +574,7 @@ class Board
       @on_action.call(action) if @on_action
       
       responses = (0...4).map(){ |i| @players[i].respond_to_action(actions[i]) }
+      validate_responses(responses, action)
       
       @previous_action = action
       return responses
@@ -593,6 +594,51 @@ class Board
           return Action.new({:type => :tsumo, :actor => action.actor, :pai => pai})
         else
           return action
+      end
+    end
+    
+    def validate_responses(responses, action)
+      for i in 0...4
+        response = responses[i]
+        raise("invalid actor") if response && response.actor != @players[i]
+        is_actor = @players[i] == action.actor
+        case action.type
+          when :start_game, :start_kyoku, :haipai, :end_kyoku, :end_game
+            valid = !response
+          when :tsumo
+            if is_actor
+              valid = response && [:dahai, :reach, :ankan, :kakan, :hora].include?(response.type)
+            else
+              valid = !response
+            end
+          when :dahai
+            if is_actor
+              valid = !response
+            else
+              valid = !response || [:chi, :pon, :daiminkan, :hora].include?(response.type)
+            end
+          when :chi, :pon, :reach
+            if is_actor
+              valid = response && response.type == :dahai
+            else
+              valid = !response
+            end
+          when :ankan, :daiminkan
+            # Actor should wait for tsumo.
+            valid = !response
+          when :kakan
+            if is_actor
+              # Actor should wait for tsumo.
+              valid = !response
+            else
+              valid = !response || response.type == :hora
+            end
+          when :hora, :dora, :reach_accepted
+            valid = !response
+          else
+            raise("unknown action type: #{action.type}")
+        end
+        raise("bad response %p for %p" % [response, action]) if !valid
       end
     end
     
@@ -670,6 +716,8 @@ class ActiveBoard < Board
     
     # 摸打
     def mota()
+      reach = false
+      tsumo_actor = @actor
       actions = [Action.new({:type => :tsumo, :actor => @actor, :pai => @pipais.pop()})]
       while !actions.empty?
         if actions[0].type == :hora
@@ -689,8 +737,13 @@ class ActiveBoard < Board
                 [Action.new({:type => :tsumo, :actor => action.actor, :pai => @wanpais.pop()})]
               # TODO 王牌の補充、ドラの追加
               next
+            when :reach
+              reach = true
           end
           actions = choose_actions(responses)
+          if reach && (actions.empty? || actions[0].type != :dahai)
+            do_action(Action.new({:type => :reach_accepted, :actor => tsumo_actor}))
+          end
         end
       end
     end
