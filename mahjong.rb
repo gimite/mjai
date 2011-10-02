@@ -13,6 +13,7 @@ class Pai
       pais = []
       red = false
       str.split(//).reverse_each() do |ch|
+        next if ch =~ /^\s$/
         if ch =~ /^[mps]$/
           type = ch
         elsif ch =~ /^[1-9]$/
@@ -562,7 +563,7 @@ class Board
           @oya = action.oya
           @dora_markers = [action.dora_marker]
         when :dora
-          @dora_markers.push(action.pai)
+          @dora_markers.push(action.dora_marker)
       end
       
       actions = (0...4).map(){ |i| action_in_view(action, i) }
@@ -762,11 +763,14 @@ class ShantenCounter
       :single => 1,
     }
     
-    def initialize(pais, max_shanten = nil, types = [:normal, :chitoitsu, :kokushimuso])
+    def initialize(pais, max_shanten = nil, types = [:normal, :chitoitsu, :kokushimuso],
+        num_used_pais = pais.size, need_all_combinations = true)
       
       @pais = pais
       @max_shanten = max_shanten
-      raise(ArgumentError, "invalid number of pais") if @pais.size % 3 == 0
+      @num_used_pais = num_used_pais
+      @need_all_combinations = need_all_combinations
+      raise(ArgumentError, "invalid number of pais") if @num_used_pais % 3 == 0
       @pai_set = Hash.new(0)
       for pai in @pais
         @pai_set[pai.remove_red()] += 1
@@ -792,7 +796,7 @@ class ShantenCounter
       
     end
     
-    attr_reader(:shanten, :combinations)
+    attr_reader(:pais, :shanten, :combinations)
     
     def count_chitoi(pai_set)
       num_toitsus = pai_set.select(){ |pai, n| n >= 2 }.size
@@ -829,6 +833,10 @@ class ShantenCounter
             min_shanten = 1.0/0.0
             first_pai = pai_set.keys.sort()[0]
             for type in MENTSU_TYPES
+              if @max_shanten == -1
+                next if [:ryanpen, :kanta].include?(type)
+                next if mentsus.any?(){ |t, ps| t == :toitsu } && type == :toitsu
+              end
               (removed_pais, remains_set) = remove(pai_set, type, first_pai)
               if remains_set
                 (shanten, combinations) =
@@ -836,6 +844,7 @@ class ShantenCounter
                 if shanten < min_shanten
                   min_shanten = shanten
                   min_combinations = combinations
+                  break if !@need_all_combinations && min_shanten == -1
                 elsif shanten == min_shanten && shanten < 1.0/0.0
                   min_combinations += combinations
                 end
@@ -855,10 +864,29 @@ class ShantenCounter
     def get_min_shanten_for_mentsus(mentsus)
       
       mentsu_categories = mentsus.map(){ |t, ps| MENTSU_CATEGORIES[t] }
-      
-      # Assumes remaining pais generates best combinations.
       num_current_pais = mentsu_categories.map(){ |m| MENTSU_SIZES[m] }.inject(0, :+)
       num_remain_pais = @pais.size - num_current_pais
+      
+      min_shantens = []
+      if index = mentsu_categories.index(:toitsu)
+        # Assumes the 対子 is 雀頭.
+        mentsu_categories.delete_at(index)
+        min_shantens.push(get_min_shanten_without_janto(mentsu_categories, num_remain_pais))
+      else
+        # Assumes 雀頭 is missing.
+        min_shantens.push(get_min_shanten_without_janto(mentsu_categories, num_remain_pais) + 1)
+        if num_remain_pais >= 2
+          # Assumes 雀頭 is in remaining pais.
+          min_shantens.push(get_min_shanten_without_janto(mentsu_categories, num_remain_pais - 2))
+        end
+      end
+      return min_shantens.min
+      
+    end
+    
+    def get_min_shanten_without_janto(mentsu_categories, num_remain_pais)
+      
+      # Assumes remaining pais generates best combinations.
       mentsu_categories += [:complete] * (num_remain_pais / 3)
       case num_remain_pais % 3
         when 1
@@ -867,18 +895,9 @@ class ShantenCounter
           mentsu_categories.push(:toitsu)
       end
       
-      # Removes 雀頭.
-      if index = mentsu_categories.index(:toitsu)
-        mentsu_categories.delete_at(index)
-        min_shanten = -1
-      else
-        min_shanten = 0
-      end
-      
       sizes = mentsu_categories.map(){ |m| MENTSU_SIZES[m] }.sort_by(){ |n| -n }
-      num_required_mentsus = @pais.size / 3
-      min_shanten += sizes[0...num_required_mentsus].inject(0){ |r, n| r + (3 - n) }
-      return min_shanten
+      num_required_mentsus = @num_used_pais / 3
+      return -1 + sizes[0...num_required_mentsus].inject(0){ |r, n| r + (3 - n) }
       
     end
     

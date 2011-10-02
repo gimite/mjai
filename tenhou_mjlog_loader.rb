@@ -255,7 +255,7 @@ class TenhouMjlogLoader
             actor = @board.players[elem["who"].to_i()]
             do_action(FuroParser.new(elem["m"].to_i()).to_action(@board, actor))
           when "DORA"
-            do_action({:type => :dora, :pai => pid_to_pai(elem["hai"])})
+            do_action({:type => :dora, :dora_marker => pid_to_pai(elem["hai"])})
           else
             raise("unknown tag name: %s" % elem.name)
         end
