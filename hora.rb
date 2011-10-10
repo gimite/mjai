@@ -87,16 +87,16 @@ class Hora
                 furo.type == :ankan ? :an : :min,
                 furo.pais.map(){ |pai| pai.remove_red() }.sort()))
           end
-          p @mentsus
-          p @janto
-          p @machi
+          #p @mentsus
+          #p @janto
+          #p @machi
           
           get_yakus()
-          p @yakus
+          #p @yakus
           @fan = @yakus.map(){ |y, f| f }.inject(0, :+)
-          p [:fan, @fan]
+          #p [:fan, @fan]
           @fu = get_fu()
-          p [:fu, @fu]
+          #p [:fu, @fu]
           
           if @fan >= YAKUMAN_FAN
             @base_points = 8000 * (@fan / YAKUMAN_FAN)
@@ -128,14 +128,14 @@ class Hora
               @points = @oya_payment + @ko_payment * 2
             end
           end
-          p [:points, @points, @oya_payment, @ko_payment]
+          #p [:points, @points, @oya_payment, @ko_payment]
           
         end
         
         attr_reader(:points, :oya_payment, :ko_payment, :yakus, :fan, :fu)
         
         def valid?
-          return @yakus.select(){ |n, f| ![:dora, :uradora, :akadora].include?(n) }.empty?
+          return !@yakus.select(){ |n, f| ![:dora, :uradora, :akadora].include?(n) }.empty?
         end
         
         def ceil_points(points)
@@ -312,12 +312,11 @@ class Hora
                 mfu = BASE_FU_MAP[mentsu.type]
                 mfu *= 2 if mentsu.pais[0].yaochu?
                 mfu *= 2 if mentsu.visibility == :an
-                p [:mfu, mfu]
                 fu += mfu
               end
               fu += fanpai_fan(@janto.pais[0]) * 2
               fu += 2 if [:kanchan, :penchan, :tanki].include?(@machi)
-              p [:raw_fu, fu]
+              #p [:raw_fu, fu]
               return (fu / 10.0).ceil * 10
           end
         end
@@ -472,6 +471,9 @@ class Hora
     def initialize(params)
       
       @fields = params
+      raise("tehais is missing") if !self.tehais
+      raise("taken is missing") if !self.taken
+      
       @free_pais = self.tehais + [self.taken]
       @all_pais = @free_pais + self.furos.map(){ |f| f.pais }.flatten()
       

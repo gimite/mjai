@@ -11,14 +11,14 @@ class StatisticalPlayer < Player
         case action.type
           
           when :tsumo, :chi, :pon, :reach
-              
+            
             current_shanten = ShantenCounter.new(self.tehais, nil, [:normal]).shanten
             if action.type == :tsumo
               case current_shanten
                 when -1
                   return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
                 when 0
-                  return create_action({:type => :reach})
+                  return create_action({:type => :reach}) if !self.reach?
               end
             end
             p [:shanten, current_shanten]
@@ -71,10 +71,8 @@ class StatisticalPlayer < Player
         
         case action.type
           when :dahai
-            if action.actor != self
-              if ShantenCounter.new(self.tehais + [action.pai], -1).shanten == -1
-                return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
-              end
+            if ShantenCounter.new(self.tehais + [action.pai], -1).shanten == -1
+              return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
             end
         end
         

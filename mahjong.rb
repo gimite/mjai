@@ -177,13 +177,15 @@ class Serializable
         case type
           when :symbol
             obj = plain.intern()
+          when :symbols
+            obj = plain.map(){ |s| s.intern() }
           when :player
             obj = board.players[plain]
           when :pai
             obj = Pai.new(plain)
           when :pais
             obj = plain.map(){ |s| Pai.new(s) }
-          when :number, :string
+          when :number, :numbers, :string, :strings
             obj = plain
           else
             raise("unknown type")
@@ -212,9 +214,9 @@ class Serializable
             plain = obj.to_s()
           when :player
             plain = obj.id
-          when :pais
+          when :symbols, :pais
             plain = obj.map(){ |a| a.to_s() }
-          when :number, :string, :strings
+          when :number, :numbers, :string, :strings
             plain = obj
           else
             raise("unknown type")
@@ -268,6 +270,11 @@ class Action < Serializable
       [:dora_marker, :pai],
       [:uri, :string],
       [:names, :strings],
+      [:fu, :number],
+      [:fan, :number],
+      [:hora_points, :number],
+      [:deltas, :numbers],
+      [:player_points, :numbers],
     ])
     
 end
@@ -288,6 +295,7 @@ class Player
     attr_reader(:extra_anpais)  # sutehais以外のこのプレーヤに対する安牌
     attr_reader(:reach_ho_index)
     attr_accessor(:board)
+    attr_accessor(:points)
     
     def anpais
       return @sutehais + @extra_anpais
@@ -355,6 +363,7 @@ class Player
           when :reach_accepted
             @reach = true
             @reach_ho_index = @ho.size - 1
+            @points -= 1000
         end
       end
       
@@ -374,6 +383,10 @@ class Player
       else
         return nil
       end
+    end
+    
+    def tenpai?
+      return ShantenCounter.new(@tehais, 0).shanten <= 0
     end
     
     def delete_tehai(pai)
@@ -419,15 +432,22 @@ end
 
 class ShantenPlayer < Player
     
+    USE_FURO = false
+    
     def respond_to_action(action)
-      case action.type
+      
+      if action.actor == self
         
-        when :tsumo, :chi, :pon
-          if action.actor == self
+        case action.type
+          
+          when :tsumo, :chi, :pon, :reach
+            shanten = ShantenCounter.new(self.tehais).shanten
             if action.type == :tsumo
-              shanten = ShantenCounter.count(self.tehais)
-              if shanten == -1
-                return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
+              case shanten
+                when -1
+                  return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
+                when 0
+                  return create_action({:type => :reach}) if !self.reach?
               end
               for pai in self.tehais
                 if self.tehais.select(){ |tp| tp == pai }.size >= 4
@@ -446,51 +466,56 @@ class ShantenPlayer < Player
             (self.tehais.size - 1).downto(0) do |i|
               remains = self.tehais.dup()
               remains.delete_at(i)
-              if ShantenCounter.count(remains) == shanten
+              if ShantenCounter.new(remains, shanten).shanten == shanten
                 sutehai = self.tehais[i]
                 break
               end
             end
             p [:shanten, @id, shanten]
             return create_action({:type => :dahai, :pai => sutehai})
-          end
-          
-        when :dahai
-          if action.actor != self
-            if ShantenCounter.count(self.tehais + [action.pai]) == -1
+            
+        end
+        
+      else  # action.actor != self
+        
+        case action.type
+          when :dahai
+            if ShantenCounter.new(self.tehais + [action.pai]).shanten == -1
               return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
-            elsif self.tehais.select(){ |pai| pai == action.pai }.size >= 3
-              #@board.last = true
-              return create_action({
-                :type => :daiminkan,
-                :pai => action.pai,
-                :consumed => [action.pai] * 3,
-                :target => action.actor
-              })
-            elsif self.tehais.select(){ |pai| pai == action.pai }.size >= 2
-              return create_action({
-                :type => :pon,
-                :pai => action.pai,
-                :consumed => [action.pai] * 2,
-                :target => action.actor
-              })
-            elsif (action.actor.id + 1) % 4 == self.id && action.pai.type != "t"
-              for i in 0...3
-                consumed = (((-i)...(-i + 3)).to_a() - [0]).map() do |j|
-                  Pai.new(action.pai.type, action.pai.number + j)
-                end
-                if consumed.all?(){ |pai| self.tehais.index(pai) }
-                  return create_action({
-                    :type => :chi,
-                    :pai => action.pai,
-                    :consumed => consumed,
-                    :target => action.actor,
-                  })
+            elsif USE_FURO
+              if self.tehais.select(){ |pai| pai == action.pai }.size >= 3
+                #@board.last = true
+                return create_action({
+                  :type => :daiminkan,
+                  :pai => action.pai,
+                  :consumed => [action.pai] * 3,
+                  :target => action.actor
+                })
+              elsif self.tehais.select(){ |pai| pai == action.pai }.size >= 2
+                return create_action({
+                  :type => :pon,
+                  :pai => action.pai,
+                  :consumed => [action.pai] * 2,
+                  :target => action.actor
+                })
+              elsif (action.actor.id + 1) % 4 == self.id && action.pai.type != "t"
+                for i in 0...3
+                  consumed = (((-i)...(-i + 3)).to_a() - [0]).map() do |j|
+                    Pai.new(action.pai.type, action.pai.number + j)
+                  end
+                  if consumed.all?(){ |pai| self.tehais.index(pai) }
+                    return create_action({
+                      :type => :chi,
+                      :pai => action.pai,
+                      :consumed => consumed,
+                      :target => action.actor,
+                    })
+                  end
                 end
               end
             end
-          end
-          
+        end
+        
       end
       
       return nil
@@ -535,6 +560,7 @@ class Board
     attr_reader(:all_pais)
     attr_reader(:bakaze)
     attr_reader(:oya)
+    attr_reader(:honba)
     attr_reader(:dora_markers)  # ドラ表示牌
     attr_reader(:previous_action)
     attr_reader(:all_pais)
@@ -557,8 +583,13 @@ class Board
           end
           @all_pais = pais.flatten().sort()
         when :start_kyoku
-          if action.oya.id == 0 && @oya != action.oya
-            @bakaze = @bakaze ? @bakaze.succ : Pai.new("E")
+          if action.oya == @oya  # 連荘
+            @honba += 1
+          else
+            if action.oya.id == 0
+              @bakaze = @bakaze ? @bakaze.succ : Pai.new("E")
+            end
+            @honba = 0
           end
           @oya = action.oya
           @dora_markers = [action.dora_marker]
@@ -603,7 +634,8 @@ class Board
         raise("invalid actor") if response && response.actor != @players[i]
         is_actor = @players[i] == action.actor
         case action.type
-          when :start_game, :start_kyoku, :haipai, :end_kyoku, :end_game
+          when :start_game, :start_kyoku, :haipai, :end_kyoku, :end_game,
+              :hora, :ryukyoku, :dora, :reach_accepted
             valid = !response
           when :tsumo
             if is_actor
@@ -633,8 +665,6 @@ class Board
             else
               valid = !response || response.type == :hora
             end
-          when :hora, :dora, :reach_accepted
-            valid = !response
           else
             raise("unknown action type: #{action.type}")
         end
@@ -652,16 +682,19 @@ class Board
     end
     
     def dump()
+      if @bakaze && @honba && @oya
+        print("%s-%d kyoku %d honba  " % [@bakaze, @oya.id + 1, @honba])
+      end
       print("pipai: %d  " % @pipais.size) if @pipais
-      print("bakaze: %s  " % @bakaze) if @bakaze
-      print("oya: %d  " % @oya.id) if @oya
       print("dora_marker: %s  " % @dora_markers.join(" ")) if @dora_markers
       puts()
       @players.each_with_index() do |player, i|
         if player.tehais
-          puts("%s[%d] tehai: %s %s" %
-               [@actor == player ? "*" : " ",
+          puts("%s%s%d%s tehai: %s %s" %
+               [player == @actor ? "*" : " ",
+                player == @oya ? "{" : "[",
                 i,
+                player == @oya ? "}" : "]",
                 Pai.dump_pais(player.tehais),
                 player.furos.join(" ")])
           if player.reach_ho_index
@@ -685,7 +718,7 @@ class ActiveBoard < Board
     
     def play_game()
       do_action(Action.new({:type => :start_game}))
-      @next_oya = @players[0]  # TODO fix this
+      @next_oya = @players[0]
       while !self.game_finished?
         play_kyoku()
       end
@@ -700,6 +733,7 @@ class ActiveBoard < Board
         @wanpais = @pipais.pop(14)
         dora_marker = @wanpais.pop()
         do_action(Action.new({:type => :start_kyoku, :oya => @next_oya, :dora_marker => dora_marker}))
+        gets() # kari
         for player in @players
           do_action(Action.new(
               {:type => :haipai, :actor => player, :pais => @pipais.pop(13) }))
@@ -721,11 +755,8 @@ class ActiveBoard < Board
       actions = [Action.new({:type => :tsumo, :actor => @actor, :pai => @pipais.pop()})]
       while !actions.empty?
         if actions[0].type == :hora
-          # TODO 点数計算
           # actions.size >= 2 in case of double/triple ron
-          for action in actions
-            do_action(action)
-          end
+          process_hora(actions)
           throw(:end_kyoku)
         else
           raise("should not happen") if actions.size != 1
@@ -741,7 +772,7 @@ class ActiveBoard < Board
               reach = true
           end
           actions = choose_actions(responses)
-          if reach && (actions.empty? || actions[0].type != :dahai)
+          if reach && (actions.empty? || ![:dahai, :hora].include?(actions[0].type))
             do_action(Action.new({:type => :reach_accepted, :actor => tsumo_actor}))
           end
         end
@@ -753,9 +784,83 @@ class ActiveBoard < Board
       return action ? [action] : []
     end
     
+    def process_hora(actions)
+      # TODO ダブロンの上家取り
+      for action in actions
+        hora_type = action.actor == action.target ? :tsumo : :ron
+        if hora_type == :tsumo
+          tehais = action.actor.tehais[0...-1]
+        else
+          tehais = action.actor.tehais
+        end
+        hora = Hora.new({
+          :tehais => tehais,
+          :furos => action.actor.furos,
+          :taken => action.pai,
+          :hora_type => hora_type,
+          :oya => action.actor == self.oya,
+          :bakaze => self.bakaze,
+          :jikaze => action.actor.jikaze,
+          :doras => self.doras,
+          :uradoras => [],  # TODO
+          :reach => action.actor.reach?,
+          :double_reach => false,  # TODO
+          :ippatsu => false,  # TODO
+          :rinshan => false,  # TODO
+          :haitei => @pipais.empty?,
+          :first_turn => false,  # TODO
+          :chankan => false,  # TODO
+        })
+        raise("no yaku") if !hora.valid?
+        #p [:hora, hora.fu, hora.fan, hora.points, hora.yakus]
+        deltas = [0, 0, 0, 0]
+        # TODO 積み棒
+        deltas[action.actor.id] += hora.points + self.honba * 300
+        deltas[action.actor.id] += self.players.select(){ |pl| pl.reach? }.size * 1000
+        if hora_type == :tsumo
+          for player in self.players
+            next if player == action.actor
+            deltas[player.id] -=
+                ((player == self.oya ? hora.oya_payment : hora.ko_payment) + self.honba * 100)
+          end
+        else
+          deltas[action.target.id] -= (hora.points + self.honba * 300)
+        end
+        for player in self.players
+          player.points += deltas[player.id]
+        end
+        # TODO 役をフィールドに追加
+        do_action(Action.new({
+          :type => action.type,
+          :actor => action.actor,
+          :target => action.target,
+          :pai => action.pai,
+          :fu => hora.fu,
+          :fan => hora.fan,
+          :hora_points => hora.points,
+          :deltas => deltas,
+          :player_points => self.players.map(){ |pl| pl.points },
+        }))
+      end
+      update_next_oya(actions.any?(){ |a| a.actor == self.oya })
+    end
+    
     def process_ryukyoku()
+      tenpais = @players.map(){ |p| p.tenpai? }
       # TODO 点数計算
       do_action(Action.new({:type => :ryukyoku, :reason => :fanpai}))
+      update_next_oya(tenpais[self.oya.id])
+    end
+    
+    def update_next_oya(renchan)
+      if renchan
+        @next_oya = self.oya
+      elsif self.bakaze == Pai.new("S") && self.oya == @players[3]
+        # TODO Consider 西入、東風戦.
+        @last = true
+      else
+        @next_oya = @players[(self.oya.id + 1) % 4]
+      end
     end
     
     def game_finished?
@@ -1073,3 +1178,6 @@ def shanten_counter_benchmark()
   end
   p Time.now.to_f - start_time
 end
+
+
+require "./hora"

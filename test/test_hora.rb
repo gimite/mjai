@@ -20,8 +20,12 @@ class TC_Hora < Test::Unit::TestCase
       :oya => false,
     }
     
+    def new_hora(params)
+      return Hora.new(DEFAULT_PARAMS.merge(params))
+    end
+    
     def has_yaku?(yaku, params)
-      return Hora.new(DEFAULT_PARAMS.merge(params)).yakus.include?(yaku)
+      return new_hora(params).yakus.include?(yaku)
     end
     
     def test_yaku()
@@ -337,7 +341,25 @@ class TC_Hora < Test::Unit::TestCase
       
     end
     
-    def test_points
+    def test_valid()
+      
+      assert(new_hora({
+        :tehais => Pai.parse_pais("56799m11134678s"),
+        :taken => Pai.new("5s"),
+        :hora_type => :ron,
+        :reach => true,
+      }).valid?)
+      
+      assert(!new_hora({
+        :tehais => Pai.parse_pais("56799m11134678s"),
+        :taken => Pai.new("5s"),
+        :hora_type => :ron,
+        :reach => false,
+      }).valid?)
+      
+    end
+    
+    def test_points()
       # TODO
     end
     
