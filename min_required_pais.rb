@@ -173,3 +173,276 @@ class MinRequiredPais
     end
 
 end
+
+
+# NOTE: This doesn't output candidates which are generated from unoptimal seed combinations.
+class MinRequiredPais2
+    
+    SeedSet = Struct.new(:janto_seed, :mentsu_seeds)
+    
+    class Mentsu < Struct.new(:type, :pais)
+        
+        include(Comparable)
+        
+        def <=>(other)
+          raise(ArgumentError, "comparison failed") if !other.is_a?(Mentsu)
+          return [self.type, self.pais] <=> [other.type, other.pais]
+        end
+        
+    end
+    
+    class Or
+        
+        include(Enumerable)
+        extend(Forwardable)
+        
+        def initialize(objs)
+          @objs = objs
+        end
+        
+        def_delegators(:@objs, :each, :[], :size, :empty?)
+        
+        alias impossible? empty?
+        
+        def need_nothing?
+          return @objs.any?(){ |o| o.empty? }
+        end
+        
+        def to_a()
+          return @objs
+        end
+        
+        def ==(other)
+          return self.class == other.class && to_a() == other.to_a()
+        end
+        
+        alias eql? ==
+        
+        def hash
+          return @objs.hash
+        end
+        
+        def to_s()
+          if self.impossible?
+            return "IMPOSSIBLE"
+          else
+            return "(%s)" % @objs.map(){ |o| o.join(" & ") }.join(" | ")
+          end
+        end
+        
+    end
+    
+    def self.cache(method_name)
+      orig_method_name = "orig_#{method_name}"
+      alias_method(orig_method_name, method_name)
+      define_method(method_name) do |*args|
+        key = [method_name] + args
+        #pp(["->"] + key)
+        cached = @cache.has_key?(key)
+        @cache[key] = __send__(orig_method_name, *args) if !cached
+        #pp([cached ? "<- (cached)" : "<-"] + key + [":", @cache[key]])
+        return @cache[key]
+      end
+    end
+    
+    def initialize(pais_or_shanten, num_allowed_extra = 0, goal_shanten = -1)
+      @cache = {}
+      @mentsus_to_seeds = {}
+      @required_pais_for_mentsu_cache = {}
+      if pais_or_shanten.is_a?(ShantenCounter)
+        @shanten = pais_or_shanten
+      else
+        @shanten = ShantenCounter.new(pais_or_shanten, nil, [:normal])
+      end
+      @goal_shanten = goal_shanten
+      @goal_shanten_decrease = @shanten.shanten - goal_shanten
+      @num_allowed_extra = num_allowed_extra
+      @max_required_pais = @goal_shanten_decrease + num_allowed_extra
+      @seed_candidates = get_seed_candidates()
+    end
+    
+    attr_reader(:seed_candidates)
+    
+    def candidates
+      all_candidates = []
+      for seed_set in @seed_candidates
+        #pp [:seed, seed_set]
+        for janto_shanten_decrease in [0, 1]
+          janto_req_pais = get_required_pais_for_janto(seed_set.janto_seed, janto_shanten_decrease)
+          #pp [:janto_req_pais, seed_set.janto_seed, janto_shanten_decrease, janto_req_pais]
+          next if janto_req_pais.impossible?
+          max_shanten_decrease = seed_set.mentsu_seeds.map(){ |m| 3 - m.pais.size }.inject(:+)
+          mentsus_or = get_required_pais_for_mentsus(
+              seed_set.mentsu_seeds.select(){ |m| m.pais.size < 3 },
+              max_shanten_decrease,
+              @goal_shanten_decrease - janto_shanten_decrease,
+              @num_allowed_extra)
+          for mentsus_pais in mentsus_or
+            all_candidates.push(([janto_req_pais] + mentsus_pais).select(){ |c| !c.need_nothing? })
+          end
+        end
+      end
+      filtered_candidates = all_candidates.select() do |ps1|
+        !all_candidates.any?(){ |ps2| ps2.size < ps1.size && (ps2 - ps1).empty? }
+      end
+      @candidates = Set.new(filtered_candidates)
+      for candidate in @candidates
+        #p [:candidate, candidate.join(" & ")]
+      end
+      return @candidates
+    end
+    
+    def get_required_pais_for_janto(seed, goal_shanten_decrease)
+      # TODO cache
+      case goal_shanten_decrease
+        when 0
+          return Or.new([[]])
+        when 1
+          if [:toitsu, :kotsu].include?(seed.type)
+            return Or.new([])
+          else
+            return Or.new([seed.pais])
+          end
+        else
+          raise("should not happen")
+      end
+    end
+    
+    def get_required_pais_for_mentsus(seeds, max_shanten_decrease, goal_shanten_decrease, max_extra)
+      if seeds.empty?
+        if goal_shanten_decrease == 0
+          #p :good
+          return Or.new([[]])
+        else
+          #p :bad
+          return Or.new([])
+        end
+      else
+        cands = []
+        car_max_shanten_decrease = 3 - seeds[0].pais.size
+        car_min_shanten_decrease =
+            car_max_shanten_decrease - (max_shanten_decrease - goal_shanten_decrease)
+        for car_shanten_decrase in
+            car_min_shanten_decrease..[car_max_shanten_decrease, goal_shanten_decrease].min
+          for car_num_extra in 0..[1, max_extra].min
+            car_required_pais =
+                get_required_pais_for_mentsu(seeds[0], car_shanten_decrase, car_num_extra)
+            #pp [:mentsu_req_pais, seeds[0], car_shanten_decrase, car_num_extra, car_required_pais]
+            next if car_required_pais.impossible?
+            cdr_or = get_required_pais_for_mentsus(
+                seeds[1..-1],
+                max_shanten_decrease - car_max_shanten_decrease,
+                goal_shanten_decrease - car_shanten_decrase,
+                max_extra - car_num_extra)
+            for cdr_pais in cdr_or
+              cands.push([car_required_pais] + cdr_pais)
+            end
+          end
+        end
+        return Or.new(cands)
+      end
+    end
+    
+    def get_required_pais_for_mentsu(seed, shanten_decrease, num_extra)
+      if shanten_decrease == 0 && num_extra == 0
+        rel_cands = [[]]
+      else
+        case [seed.type, shanten_decrease, num_extra]
+          when [:ryanpen, 1, 0]
+            rel_cands = [[-1], [2]]
+          when [:kanta, 1, 0]
+            rel_cands = [[1]]
+          when [:kanta, 1, 1]
+            rel_cands = [[-2, -1], [3, 4]]
+          when [:toitsu, 1, 0]
+            rel_cands = [[0]]
+          when [:toitsu, 1, 1]
+            rel_cands = [[-2, -1], [-1, 1], [1, 2]]
+          when [:single, 1, 0]
+            rel_cands = [[-2], [-1], [0], [1], [2]]
+          when [:single, 2, 0]
+            rel_cands = [[0, 0], [-2, -1], [-1, 1], [1, 2]]
+          else
+            rel_cands = []
+        end
+      end
+      return get_required_pais_from_relative_numbers(seed.pais[0], rel_cands)
+    end
+    
+    def get_required_pais_from_relative_numbers(pai, rel_num_cands)
+      pais_cands = rel_num_cands.
+        map(){ |is| is.map(){ |i| pai.number + i } }.
+        select(){ |ns| ns.all?(){ |n| (n == 0 || pai.type != "t") && (1..9).include?(n) } }.
+        map(){ |ns| ns.map(){ |n| Pai.new(pai.type, n) } }
+      return Or.new(pais_cands)
+    end
+    
+    def get_seed_candidates()
+      result = []
+      seen_mentsus_set = Set.new()
+      for combination in @shanten.combinations
+        case combination
+          when :chitoitsu
+            raise("not implemented")
+          when :kokushimuso
+            raise("not implemented")
+          else
+            all_mentsus = combination.map(){ |t, ps| Mentsu.new(t, ps) }
+            all_mentsus.combination(5) do |mentsus|
+              mentsus = mentsus.sort()  # To keep same set equal.
+              next if seen_mentsus_set.include?(mentsus)
+              seen_mentsus_set.add(mentsus)
+              for i in 0...mentsus.size
+                janto_seed = mentsus[i]
+                mentsu_seeds = mentsus.dup()
+                mentsu_seeds.delete_at(i)
+                if get_shanten(janto_seed, mentsu_seeds) == @shanten.shanten
+                  seed_set = SeedSet.new(janto_seed, mentsu_seeds)
+                  #pp [:seed_set, seed_set]
+                  result.push(seed_set)
+                end
+              end
+            end
+        end
+      end
+      #pp result
+      return result
+    end
+    
+    def get_shanten(janto_seed, mentsu_seeds)
+      shanten = -1
+      shanten += 1 if ![:toitsu, :kotsu].include?(janto_seed.type)
+      shanten += mentsu_seeds.map(){ |m| 3 - m.pais.size }.inject(0, :+)
+      return shanten
+    end
+    
+    cache(:get_required_pais_for_janto)
+    cache(:get_required_pais_for_mentsus)
+    cache(:get_required_pais_for_mentsu)
+    
+    def self.benchmark(shanten_decrease, num_allowed_extra = 0, verbose = false)
+      srand(0)
+      all_pais = (["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n) } }.flatten() +
+          (1..7).map(){ |n| Pai.new("t", n) }) * 4
+      while true
+        pais = all_pais.sample(13).sort()
+        shanten = ShantenCounter.new(pais, nil, [:normal])
+        if verbose
+          puts("%s (%d)" % [pais.join(" "), shanten.shanten])
+        end
+        cands = MinRequiredPais2.new(
+            shanten, num_allowed_extra, [shanten.shanten - shanten_decrease, 0].max).
+                candidates
+        if verbose
+          for candidate in cands
+            p [:candidate, candidate.join(" & ")]
+          end
+          gets()
+        end
+      end
+    end
+
+end
+
+
+#MinRequiredPais2.benchmark(2, 1, true)

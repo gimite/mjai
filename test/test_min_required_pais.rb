@@ -9,12 +9,15 @@ class TC_MinRequiredPais < Test::Unit::TestCase
     end
     
     def test_candidates()
+      MinRequiredPais2.new(Pai.parse_pais("123789m2379sSPF"), 1, 0).candidates
+=begin
       assert_equal(
           to_pais_set(["16s", "19s", "46s", "49s"]),
           MinRequiredPais.new(Pai.parse_pais("123m456p2378sWNN")).candidates)
       assert_equal(
           to_pais_set(["17s", "1sN", "47s", "4sN"]),
           MinRequiredPais.new(Pai.parse_pais("123m456p2377sWNN")).candidates)
+=end
     end
     
 end
