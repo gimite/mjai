@@ -191,25 +191,30 @@ class MinRequiredPais2
         
     end
     
-    class Or
+    class Operator
         
         include(Enumerable)
         extend(Forwardable)
         
-        def initialize(objs)
-          @objs = objs
+        def initialize(children)
+          @children = []
+          for child in children
+            case child
+              when Pai
+                @children.push(PaiRequirement.new(child))
+              when self.class
+                @children.push(*child.children)
+              else
+                @children.push(child)
+            end
+          end
         end
         
-        def_delegators(:@objs, :each, :[], :size, :empty?)
-        
-        alias impossible? empty?
-        
-        def need_nothing?
-          return @objs.any?(){ |o| o.empty? }
-        end
+        attr_reader(:children)
+        def_delegators(:@children, :each, :[], :size, :empty?)
         
         def to_a()
-          return @objs
+          return @children
         end
         
         def ==(other)
@@ -219,18 +224,95 @@ class MinRequiredPais2
         alias eql? ==
         
         def hash
-          return @objs.hash
+          return @children.hash
+        end
+        
+    end
+    
+    class Or < Operator
+        
+        alias impossible? empty?
+        
+        def need_nothing?
+          return @children.any?(){ |c| c.need_nothing? }
+        end
+        
+        alias each_in_or each
+        
+        def each_in_and(&block)
+          yield(self)
         end
         
         def to_s()
-          if self.impossible?
+          if self.empty?
             return "IMPOSSIBLE"
           else
-            return "(%s)" % @objs.map(){ |o| o.join(" & ") }.join(" | ")
+            return "(%s)" % @children.join(" | ")
           end
         end
         
     end
+    
+    class And < Operator
+        
+        alias need_nothing? empty?
+        
+        def impossible?
+          return @children.any?(){ |c| c.impossible? }
+        end
+        
+        alias each_in_and each
+        
+        def each_in_or(&block)
+          yield(self)
+        end
+        
+        # NOTE: self.subsume?(self) == false
+        def subsume?(other)
+          raise("should not happen") if !other.is_a?(And)
+          return self.size < other.size && (self.children - other.children).empty?
+        end
+        
+        def to_s()
+          if self.empty?
+            return "NEED_NOTHING"
+          else
+            return "(%s)" % @children.join(" & ")
+          end
+        end
+        
+    end
+    
+    class PaiRequirement
+        
+        def initialize(pai)
+          @pai = pai
+        end
+        
+        def need_nothing?
+          return false
+        end
+        
+        def impossible?
+          return false
+        end
+        
+        def each_in_or(&block)
+          yield(self)
+        end
+        
+        def each_in_and(&block)
+          yield(self)
+        end
+        
+        def to_s()
+          return @pai.to_s()
+        end
+        
+    end
+    
+    IMPOSSIBLE = Or.new([])
+    NEED_NOTHING = And.new([])
     
     def self.cache(method_name)
       orig_method_name = "orig_#{method_name}"
@@ -265,57 +347,68 @@ class MinRequiredPais2
     
     def candidates
       all_candidates = []
+      #p [:seeds, @seed_candidates.size]
       for seed_set in @seed_candidates
         #pp [:seed, seed_set]
         for janto_shanten_decrease in [0, 1]
-          janto_req_pais = get_required_pais_for_janto(seed_set.janto_seed, janto_shanten_decrease)
-          #pp [:janto_req_pais, seed_set.janto_seed, janto_shanten_decrease, janto_req_pais]
-          next if janto_req_pais.impossible?
+          janto_req = get_requirement_for_janto(seed_set.janto_seed, janto_shanten_decrease)
+          #pp [:janto_req, seed_set.janto_seed, janto_shanten_decrease, janto_req]
+          next if janto_req.impossible?
           max_shanten_decrease = seed_set.mentsu_seeds.map(){ |m| 3 - m.pais.size }.inject(:+)
-          mentsus_or = get_required_pais_for_mentsus(
+          mentsus_req = get_requirement_for_mentsus(
               seed_set.mentsu_seeds.select(){ |m| m.pais.size < 3 },
               max_shanten_decrease,
               @goal_shanten_decrease - janto_shanten_decrease,
               @num_allowed_extra)
-          for mentsus_pais in mentsus_or
-            all_candidates.push(([janto_req_pais] + mentsus_pais).select(){ |c| !c.need_nothing? })
+          mentsus_req.each_in_or() do |mentsus_term|
+            all_candidates.push(simplify(and_of([janto_req, mentsus_term])))
           end
         end
       end
-      filtered_candidates = all_candidates.select() do |ps1|
-        !all_candidates.any?(){ |ps2| ps2.size < ps1.size && (ps2 - ps1).empty? }
+      #for candidate in all_candidates
+      #  p [:all_candidate, candidate.to_s()]
+      #end
+      filtered_candidates = all_candidates.select() do |req1|
+        !all_candidates.any?(){ |req2| req2.subsume?(req1) }
       end
       @candidates = Set.new(filtered_candidates)
-      for candidate in @candidates
-        #p [:candidate, candidate.join(" & ")]
-      end
+      #for candidate in @candidates
+      #  p [:filtered_candidate, candidate.to_s()]
+      #end
       return @candidates
     end
     
-    def get_required_pais_for_janto(seed, goal_shanten_decrease)
-      # TODO cache
+    def simplify(req)
+      if req.is_a?(And)
+        return And.new(req.select(){ |c| !c.need_nothing? })
+      else
+        return req
+      end
+    end
+    
+    def get_requirement_for_janto(seed, goal_shanten_decrease)
       case goal_shanten_decrease
         when 0
-          return Or.new([[]])
+          return NEED_NOTHING
         when 1
           if [:toitsu, :kotsu].include?(seed.type)
-            return Or.new([])
+            return IMPOSSIBLE
           else
-            return Or.new([seed.pais])
+            return or_of(seed.pais)
           end
         else
           raise("should not happen")
       end
     end
     
-    def get_required_pais_for_mentsus(seeds, max_shanten_decrease, goal_shanten_decrease, max_extra)
+    def get_requirement_for_mentsus(seeds, max_shanten_decrease, goal_shanten_decrease, max_extra)
       if seeds.empty?
         if goal_shanten_decrease == 0
           #p :good
-          return Or.new([[]])
+          return NEED_NOTHING
         else
           #p :bad
-          return Or.new([])
+          return IMPOSSIBLE
         end
       else
         cands = []
@@ -325,25 +418,25 @@ class MinRequiredPais2
         for car_shanten_decrase in
             car_min_shanten_decrease..[car_max_shanten_decrease, goal_shanten_decrease].min
           for car_num_extra in 0..[1, max_extra].min
-            car_required_pais =
-                get_required_pais_for_mentsu(seeds[0], car_shanten_decrase, car_num_extra)
-            #pp [:mentsu_req_pais, seeds[0], car_shanten_decrase, car_num_extra, car_required_pais]
-            next if car_required_pais.impossible?
-            cdr_or = get_required_pais_for_mentsus(
+            car_req =
+                get_requirement_for_mentsu(seeds[0], car_shanten_decrase, car_num_extra)
+            #pp [:mentsu_req, seeds[0], car_shanten_decrase, car_num_extra, car_req]
+            next if car_req.impossible?
+            cdr_req = get_requirement_for_mentsus(
                 seeds[1..-1],
                 max_shanten_decrease - car_max_shanten_decrease,
                 goal_shanten_decrease - car_shanten_decrase,
                 max_extra - car_num_extra)
-            for cdr_pais in cdr_or
-              cands.push([car_required_pais] + cdr_pais)
+            cdr_req.each_in_or() do |cdr_term|
+              cands.push(and_of([car_req, cdr_term]))
             end
           end
         end
-        return Or.new(cands)
+        return or_of(cands)
       end
     end
     
-    def get_required_pais_for_mentsu(seed, shanten_decrease, num_extra)
+    def get_requirement_for_mentsu(seed, shanten_decrease, num_extra)
       if shanten_decrease == 0 && num_extra == 0
         rel_cands = [[]]
       else
@@ -366,15 +459,15 @@ class MinRequiredPais2
             rel_cands = []
         end
       end
-      return get_required_pais_from_relative_numbers(seed.pais[0], rel_cands)
+      return get_requirement_from_relative_numbers(seed.pais[0], rel_cands)
     end
     
-    def get_required_pais_from_relative_numbers(pai, rel_num_cands)
-      pais_cands = rel_num_cands.
+    def get_requirement_from_relative_numbers(pai, rel_num_cands)
+      terms = rel_num_cands.
         map(){ |is| is.map(){ |i| pai.number + i } }.
         select(){ |ns| ns.all?(){ |n| (n == 0 || pai.type != "t") && (1..9).include?(n) } }.
-        map(){ |ns| ns.map(){ |n| Pai.new(pai.type, n) } }
-      return Or.new(pais_cands)
+        map(){ |ns| and_of(ns.map(){ |n| Pai.new(pai.type, n) }) }
+      return or_of(terms)
     end
     
     def get_seed_candidates()
@@ -416,11 +509,23 @@ class MinRequiredPais2
       return shanten
     end
     
-    cache(:get_required_pais_for_janto)
-    cache(:get_required_pais_for_mentsus)
-    cache(:get_required_pais_for_mentsu)
+    def or_of(reqs)
+      return join(Or, reqs)
+    end
     
-    def self.benchmark(shanten_decrease, num_allowed_extra = 0, verbose = false)
+    def and_of(reqs)
+      return join(And, reqs)
+    end
+    
+    def join(op_class, reqs)
+      return op_class.new(reqs)
+    end
+    
+    cache(:get_requirement_for_janto)
+    cache(:get_requirement_for_mentsus)
+    cache(:get_requirement_for_mentsu)
+    
+    def self.benchmark(verbose = false)
       srand(0)
       all_pais = (["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n) } }.flatten() +
           (1..7).map(){ |n| Pai.new("t", n) }) * 4
@@ -430,12 +535,17 @@ class MinRequiredPais2
         if verbose
           puts("%s (%d)" % [pais.join(" "), shanten.shanten])
         end
-        cands = MinRequiredPais2.new(
-            shanten, num_allowed_extra, [shanten.shanten - shanten_decrease, 0].max).
-                candidates
+        if shanten.shanten >= 4
+          goal_shanten = shanten.shanten - 1
+        elsif shanten.shanten >= 2
+          goal_shanten = shanten.shanten - 2
+        else
+          goal_shanten = -1
+        end
+        cands = MinRequiredPais2.new(shanten, 1, goal_shanten).candidates
         if verbose
           for candidate in cands
-            p [:candidate, candidate.join(" & ")]
+            p [:candidate, candidate.to_s()]
           end
           gets()
         end
@@ -445,4 +555,4 @@ class MinRequiredPais2
 end
 
 
-#MinRequiredPais2.benchmark(2, 1, true)
+#MinRequiredPais2.benchmark(true)
