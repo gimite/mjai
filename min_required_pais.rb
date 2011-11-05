@@ -289,6 +289,8 @@ class MinRequiredPais2
           @pai = pai
         end
         
+        attr_reader(:pai)
+        
         def need_nothing?
           return false
         end

@@ -31,8 +31,16 @@ class StatisticalPlayer < Player
             end
             visible_set = to_pai_set(visible)
             
+            if current_shanten >= 4
+              goal_shanten = current_shanten - 1
+            elsif current_shanten >= 2
+              goal_shanten = current_shanten - 2
+            else
+              goal_shanten = -1
+            end
+            
             targets = []
-            total_seeds = 0
+            #total_seeds = 0
             for pai in self.tehais.uniq()
               idx = self.tehais.index(pai)
               remains = self.tehais.dup()
@@ -42,15 +50,15 @@ class StatisticalPlayer < Player
                 next
               end
               targets.push([idx, shanten])
-              total_seeds += MinRequiredPais.new(shanten, 1).seed_mentsus_candidates.size
+              #total_seeds += MinRequiredPais.new(shanten, 1).seed_mentsus_candidates.size
             end
-            num_allowed_extra = total_seeds >= 400 ? 0 : 1
-            p [:num_allowed_extra, num_allowed_extra, total_seeds]
+            #num_allowed_extra = total_seeds >= 400 ? 0 : 1
+            #p [:num_allowed_extra, num_allowed_extra, total_seeds]
             
             max_prob = -1.0/0.0
             max_pai_index = nil
             for idx, shanten in targets
-              prob = get_hora_prob(shanten, visible_set, visible.size, num_allowed_extra)
+              prob = get_hora_prob(shanten, visible_set, visible.size, goal_shanten)
               p [:hora_prob, self.tehais[idx], prob]
               if prob > max_prob
                 max_prob = prob
@@ -58,10 +66,10 @@ class StatisticalPlayer < Player
               end
             end
             p [:dahai, self.tehais[max_pai_index]]
-            #if self.id == 0
-            #  print("> ")
-            #  gets()
-            #end
+            if self.id == 0
+              print("> ")
+              gets()
+            end
             
             return create_action({:type => :dahai, :pai => self.tehais[max_pai_index]})
             
@@ -81,24 +89,45 @@ class StatisticalPlayer < Player
       return nil
     end
     
-    def get_hora_prob(shanten, visible_set, num_visible, num_allowed_extra)
-      num_invisible = board.all_pais.size - num_visible
-      num_tsumos = board.num_pipais / 4
-      no_hora_prob = 1.0
-      for required_pais in MinRequiredPais.new(shanten, num_allowed_extra).candidates
-        all_tsumo_prob = 1.0
-        for pai in required_pais
-          num_same_invisible = 4 - visible_set[pai]
-          pai_tsumo_prob = 1.0 -
-              num_permutations(num_invisible - num_same_invisible, num_tsumos) /
-              num_permutations(num_invisible, num_tsumos).to_f()
-          #p [:pai_tsumo_prob, pai, num_invisible, num_same_invisible, num_tsumos, pai_tsumo_prob]
-          all_tsumo_prob *= pai_tsumo_prob
-        end
-        #p [:all_tsumo_prob, required_pais, all_tsumo_prob]
-        no_hora_prob *= (1.0 - all_tsumo_prob)
+    State = Struct.new(:visible_set, :num_invisible, :num_tsumos)
+    
+    def get_hora_prob(shanten, visible_set, num_visible, goal_shanten)
+      
+      state = State.new()
+      state.visible_set = visible_set
+      state.num_invisible = board.all_pais.size - num_visible
+      num_all_tsumos = board.num_pipais / 4
+      # Assumes shanten decease is linear.
+      state.num_tsumos = num_all_tsumos * (shanten.shanten - goal_shanten) / (shanten.shanten - (-1))
+      
+      req = MinRequiredPais2::Or.new(MinRequiredPais2.new(shanten, 1, goal_shanten).candidates.to_a())
+      return get_prob_for_requirement(req, state)
+      
+    end
+    
+    def get_prob_for_requirement(req, state)
+      case req
+        when MinRequiredPais2::PaiRequirement
+          num_same_invisible = 4 - state.visible_set[req.pai]
+          prob = 1.0 -
+              num_permutations(state.num_invisible - num_same_invisible, state.num_tsumos) /
+              num_permutations(state.num_invisible, state.num_tsumos).to_f()
+        when MinRequiredPais2::Or
+          neg_prob = 1.0
+          for child in req.children
+            neg_prob *= (1.0 - get_prob_for_requirement(child, state))
+          end
+          prob = 1.0 - neg_prob
+        when MinRequiredPais2::And
+          prob = 1.0
+          for child in req.children
+            prob *= get_prob_for_requirement(child, state)
+          end
+        else
+          raise("should not happen")
       end
-      return 1.0 - no_hora_prob
+      #p [:prob, req.to_s(), prob]
+      return prob
     end
     
     # This is too slow but left here as most precise baseline.
@@ -151,6 +180,96 @@ class StatisticalPlayer < Player
       return kotsus.size + num_shuntsus >= 4 && toitsus.size >= 1
     end
     
+    # NOTE: This doesn't output two pais in long distance e.g. 16m for 2345m for now.
+    def improvers(tehais)
+      tehai_set = to_pai_set(tehais)
+      cands = Set.new()
+      for pai, count in tehai_set
+        cands.add([pai])
+        cands.add([pai, pai])
+        if pai.type != "t"
+          for rs in [[-1], [1], [-2, -1], [-1, 1], [1, 2]]
+            pais = rs.map(){ |r| Pai.new(pai.type, pai.number + r) }
+            if pais.all?(){ |pai| (1..9).include?(pai.number) }
+              cands.add(pais)
+            end
+          end
+        end
+      end
+      p [:cands, cands.to_a().sort()]
+      tehai_num_mentsus = num_mentsus(tehai_set)
+      p [:tehai_num_mentsus, tehai_num_mentsus]
+      all_result = Set.new()
+      single_improvers = Set.new()
+      for pais in cands
+        pais.each(){ |pai| tehai_set[pai] += 1 }
+        new_num_mentsus = num_mentsus(tehai_set)
+        pais.each(){ |pai| tehai_set[pai] -= 1 }
+        if new_num_mentsus > tehai_num_mentsus
+          all_result.add(pais)
+        end
+      end
+      filtered_result = Set.new()
+      for pais in all_result
+        case pais.size
+          when 1
+            filtered_result.add(pais)
+          when 2
+            if pais.all?(){ |pai| !all_result.include?([pai]) }
+              filtered_result.add(pais)
+            end
+          else
+            raise("should not happen")
+        end
+      end
+      return filtered_result
+    end
+    
+    def num_mentsus(pais)
+      pai_set = pais.is_a?(Hash) ? pais : to_pai_set(pais)
+      max_num = 0
+      for pai in pai_set.keys.select(){ |pai| pai_set[pai] >= 2 } + [nil]
+        pai_set[pai] -= 2 if pai
+        num = num_3pai_mentsus(pai_set) + (pai ? 1 : 0)
+        max_num = num if num > max_num
+        pai_set[pai] += 2 if pai
+      end
+      return max_num
+    end
+    
+    def num_3pai_mentsus(pai_set)
+      kotsu_pais = pai_set.keys.select(){ |pai| pai_set[pai] >= 3 }
+      return num_3pai_mentsus_recurse(pai_set, kotsu_pais)
+    end
+    
+    def num_3pai_mentsus_recurse(pai_set, kotsu_pais)
+      if kotsu_pais.empty?
+        return num_shuntsus(pai_set)
+      else
+        car_pai = kotsu_pais[0]
+        cdr_pais = kotsu_pais[1..-1]
+        num_without = num_3pai_mentsus_recurse(pai_set, cdr_pais)
+        pai_set[car_pai] -= 3
+        num_with = num_3pai_mentsus_recurse(pai_set, cdr_pais) + 1
+        pai_set[car_pai] += 3
+        return [num_without, num_with].max
+      end
+    end
+    
+    def num_shuntsus(pai_set)
+      pai_set = pai_set.dup()
+      num = 0
+      for pai in pai_set.keys.sort()
+        next if pai.type == "t"
+        shuntsu_pais = (0..2).map(){ |i| Pai.new(pai.type, pai.number + i) }
+        while shuntsu_pais.all?(){ |sp| pai_set[sp] > 0 }
+          shuntsu_pais.each(){ |sp| pai_set[sp] -= 1 }
+          num += 1
+        end
+      end
+      return num
+    end
+    
     def num_permutations(n, m)
       return ((n - m + 1)..n).inject(1, :*)
     end
@@ -163,4 +282,19 @@ class StatisticalPlayer < Player
       return pai_set
     end
     
+    def random_test()
+      all_pais = (["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n) } }.flatten() +
+          (1..7).map(){ |n| Pai.new("t", n) }) * 4
+      while true
+        pais = all_pais.sample(13).sort()
+        puts(pais.join(" "))
+        for pais in improvers(pais).to_a().sort()
+          puts(pais.join(" "))
+        end
+        gets()
+      end
+    end
+    
 end
+
+#StatisticalPlayer.new.random_test()
