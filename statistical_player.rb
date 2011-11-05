@@ -18,7 +18,11 @@ class StatisticalPlayer < Player
                 when -1
                   return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
                 when 0
-                  return create_action({:type => :reach}) if !self.reach?
+                  if self.reach?
+                    return create_action({:type => :dahai, :pai => action.pai})
+                  else
+                    return create_action({:type => :reach})
+                  end
               end
             end
             p [:shanten, current_shanten]
@@ -31,40 +35,22 @@ class StatisticalPlayer < Player
             end
             visible_set = to_pai_set(visible)
             
-            if current_shanten >= 4
-              goal_shanten = current_shanten - 1
-            elsif current_shanten >= 2
-              goal_shanten = current_shanten - 2
-            else
-              goal_shanten = -1
-            end
-            
-            targets = []
-            #total_seeds = 0
+            index_to_metrics = {}
             for pai in self.tehais.uniq()
               idx = self.tehais.index(pai)
               remains = self.tehais.dup()
               remains.delete_at(idx)
-              shanten = ShantenCounter.new(remains, current_shanten, [:normal])
-              if shanten.shanten != current_shanten
-                next
-              end
-              targets.push([idx, shanten])
-              #total_seeds += MinRequiredPais.new(shanten, 1).seed_mentsus_candidates.size
+              #p [:take, self.tehais[idx]]
+              (num_broad_mentsus, prob) = get_hora_prob(remains, visible_set, visible.size)
+              p [:hora_prob, self.tehais[idx], num_broad_mentsus, prob]
+              index_to_metrics[idx] = [num_broad_mentsus, prob]
             end
-            #num_allowed_extra = total_seeds >= 400 ? 0 : 1
-            #p [:num_allowed_extra, num_allowed_extra, total_seeds]
             
-            max_prob = -1.0/0.0
-            max_pai_index = nil
-            for idx, shanten in targets
-              prob = get_hora_prob(shanten, visible_set, visible.size, goal_shanten)
-              p [:hora_prob, self.tehais[idx], prob]
-              if prob > max_prob
-                max_prob = prob
-                max_pai_index = idx
-              end
-            end
+            max_broad_mentsus = index_to_metrics.values.map(){ |m, pr| m }.max
+            max_pai_index = index_to_metrics.keys.
+                select(){ |i| index_to_metrics[i][0] == max_broad_mentsus }.
+                max_by(){ |i| index_to_metrics[i][1] }
+            
             p [:dahai, self.tehais[max_pai_index]]
             if self.id == 0
               print("> ")
@@ -91,18 +77,32 @@ class StatisticalPlayer < Player
     
     State = Struct.new(:visible_set, :num_invisible, :num_tsumos)
     
-    def get_hora_prob(shanten, visible_set, num_visible, goal_shanten)
+    def get_hora_prob(remains, visible_set, num_visible)
       
       state = State.new()
       state.visible_set = visible_set
       state.num_invisible = board.all_pais.size - num_visible
-      num_all_tsumos = board.num_pipais / 4
-      # Assumes shanten decease is linear.
-      state.num_tsumos = num_all_tsumos * (shanten.shanten - goal_shanten) / (shanten.shanten - (-1))
+      state.num_tsumos = board.num_pipais / 4
       
-      req = MinRequiredPais2::Or.new(MinRequiredPais2.new(shanten, 1, goal_shanten).candidates.to_a())
+      (num_jantos, num_mentsus, janto_improvers, mentsu_improvers) = get_improvers(remains)
+      
+      #p [:num, num_jantos, num_mentsus]
+      #p :janto
+      janto_imp_prob = get_prob_for_improvers(janto_improvers, state)
+      #p [:prob, janto_imp_prob]
+      #p :mentsu
+      mentsu_imp_prob = get_prob_for_improvers(mentsu_improvers, state)
+      #p [:prob, mentsu_imp_prob]
+      return [
+          num_jantos + num_mentsus,
+          janto_imp_prob ** (1 - num_jantos) * mentsu_imp_prob ** (4 - num_mentsus),
+      ]
+    end
+    
+    def get_prob_for_improvers(improvers, state)
+      req = MinRequiredPais2::Or.new(improvers.map(){ |ps| MinRequiredPais2::And.new(ps) })
+      #p req.to_s()
       return get_prob_for_requirement(req, state)
-      
     end
     
     def get_prob_for_requirement(req, state)
@@ -181,7 +181,7 @@ class StatisticalPlayer < Player
     end
     
     # NOTE: This doesn't output two pais in long distance e.g. 16m for 2345m for now.
-    def improvers(tehais)
+    def get_improvers(tehais)
       tehai_set = to_pai_set(tehais)
       cands = Set.new()
       for pai, count in tehai_set
@@ -196,19 +196,33 @@ class StatisticalPlayer < Player
           end
         end
       end
-      p [:cands, cands.to_a().sort()]
-      tehai_num_mentsus = num_mentsus(tehai_set)
-      p [:tehai_num_mentsus, tehai_num_mentsus]
-      all_result = Set.new()
-      single_improvers = Set.new()
+      #p [:cands, cands.to_a().sort()]
+      (tehai_num_jantos, tehai_num_mentsus) = num_mentsus(tehai_set)
+      #p [:tehai_num_mentsus, tehai_num_jantos, tehai_num_mentsus]
+      janto_improvers = Set.new()
+      mentsu_improvers = Set.new()
       for pais in cands
         pais.each(){ |pai| tehai_set[pai] += 1 }
-        new_num_mentsus = num_mentsus(tehai_set)
+        (new_num_jantos, new_num_mentsus) = num_mentsus(tehai_set)
         pais.each(){ |pai| tehai_set[pai] -= 1 }
-        if new_num_mentsus > tehai_num_mentsus
-          all_result.add(pais)
+        if new_num_jantos + new_num_mentsus > tehai_num_jantos + tehai_num_mentsus
+          if new_num_jantos > tehai_num_jantos && pais.size == 1
+            janto_improvers.add(pais)
+          end
+          if new_num_mentsus > tehai_num_mentsus
+            mentsu_improvers.add(pais)
+          end
         end
       end
+      return [
+          tehai_num_jantos,
+          tehai_num_mentsus,
+          filter_improvers(janto_improvers),
+          filter_improvers(mentsu_improvers),
+      ]
+    end
+    
+    def filter_improvers(all_result)
       filtered_result = Set.new()
       for pais in all_result
         case pais.size
@@ -227,14 +241,20 @@ class StatisticalPlayer < Player
     
     def num_mentsus(pais)
       pai_set = pais.is_a?(Hash) ? pais : to_pai_set(pais)
-      max_num = 0
-      for pai in pai_set.keys.select(){ |pai| pai_set[pai] >= 2 } + [nil]
-        pai_set[pai] -= 2 if pai
-        num = num_3pai_mentsus(pai_set) + (pai ? 1 : 0)
-        max_num = num if num > max_num
-        pai_set[pai] += 2 if pai
+      num_without_janto = num_3pai_mentsus(pai_set)
+      max_num_with_janto = 0
+      for pai in pai_set.keys.select(){ |pai| pai_set[pai] >= 2 }
+        pai_set[pai] -= 2
+        num = num_3pai_mentsus(pai_set)
+        max_num_with_janto = num if num > max_num_with_janto
+        pai_set[pai] += 2
       end
-      return max_num
+      # e.g. Prefers [0, 4] to [1, 3]
+      if max_num_with_janto == num_without_janto
+        return [1, max_num_with_janto]
+      else
+        return [0, num_without_janto]
+      end
     end
     
     def num_3pai_mentsus(pai_set)
@@ -288,8 +308,12 @@ class StatisticalPlayer < Player
       while true
         pais = all_pais.sample(13).sort()
         puts(pais.join(" "))
-        for pais in improvers(pais).to_a().sort()
-          puts(pais.join(" "))
+        (nj, nm, jimp, mimp) = get_improvers(pais)
+        p [nj, nm]
+        for name, imp in [["jimp", jimp], ["mimp", mimp]]
+          for pais in imp.to_a().sort()
+            puts("%s: %s" % [name, pais.join(" ")])
+          end
         end
         gets()
       end
