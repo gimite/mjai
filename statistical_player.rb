@@ -52,10 +52,10 @@ class StatisticalPlayer < Player
                 max_by(){ |i| index_to_metrics[i][1] }
             
             p [:dahai, self.tehais[max_pai_index]]
-            if self.id == 0
+            #if self.id == 0
               print("> ")
               gets()
-            end
+            #end
             
             return create_action({:type => :dahai, :pai => self.tehais[max_pai_index]})
             
@@ -100,6 +100,10 @@ class StatisticalPlayer < Player
     end
     
     def get_prob_for_improvers(improvers, state)
+      return get_prob_for_improvers_with_monte_carlo(improvers, state)
+    end
+    
+    def get_prob_for_improvers_approximately(improvers, state)
       req = MinRequiredPais2::Or.new(improvers.map(){ |ps| MinRequiredPais2::And.new(ps) })
       #p req.to_s()
       return get_prob_for_requirement(req, state)
@@ -130,11 +134,38 @@ class StatisticalPlayer < Player
       return prob
     end
     
+    def get_prob_for_improvers_with_monte_carlo(improvers, state)
+      invisibles = []
+      for pai in self.board.all_pais.uniq
+        next if pai.red?
+        (4 - state.visible_set[pai]).times() do
+          invisibles.push(pai)
+        end
+      end
+      meet_freq = 0
+      num_tries = 10000
+      num_tries.times() do
+        tsumos = invisibles.sample(state.num_tsumos)
+        meet = have_improvers?(to_pai_set(tsumos), improvers)
+        #p [:meet, tsumos.sort().join(" "), meet]
+        meet_freq += 1 if meet
+      end
+      return meet_freq.to_f() / num_tries
+    end
+    
+    def have_improvers?(pai_set, improvers)
+      return improvers.any?() do |pais|
+        to_pai_set(pais).all?() do |pai, count|
+          pai_set[pai] >= count
+        end
+      end
+    end
+    
     # This is too slow but left here as most precise baseline.
     def get_hora_prob_with_monte_carlo(tehais, visible_set, num_visible)
       invisibles = []
-      for pai in board.all_pais.uniq
-        pai = pai.remove_red()
+      for pai in self.board.all_pais.uniq
+        next if pai.red?
         (4 - visible_set[pai]).times() do
           invisibles.push(pai)
         end
@@ -321,4 +352,16 @@ class StatisticalPlayer < Player
     
 end
 
-#StatisticalPlayer.new.random_test()
+class MockBoard
+    
+    def initialize()
+      pais = (0...4).map() do |i|
+        ["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n, n == 5 && i == 0) } } +
+            (1..7).map(){ |n| Pai.new("t", n) }
+      end
+      @all_pais = pais.flatten().sort()
+    end
+    
+    attr_reader(:all_pais)
+    
+end
