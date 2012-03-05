@@ -35,21 +35,20 @@ class StatisticalPlayer < Player
             end
             visible_set = to_pai_set(visible)
             
-            index_to_metrics = {}
+            scores = {}
             for pai in self.tehais.uniq()
+              #p [:pai, pai]
               idx = self.tehais.index(pai)
               remains = self.tehais.dup()
               remains.delete_at(idx)
-              #p [:take, self.tehais[idx]]
-              (num_broad_mentsus, prob) = get_hora_prob(remains, visible_set, visible.size)
-              p [:hora_prob, self.tehais[idx], num_broad_mentsus, prob]
-              index_to_metrics[idx] = [num_broad_mentsus, prob]
+              prog_prob = get_progress_prob(
+                  remains, visible_set, visible.size, current_shanten)
+              cheapness = pai.type == "t" ? 5 : (5 - pai.number).abs
+              scores[idx] = [prog_prob, cheapness]
+              p [:score, self.tehais[idx], scores[idx]]
             end
             
-            max_broad_mentsus = index_to_metrics.values.map(){ |m, pr| m }.max
-            max_pai_index = index_to_metrics.keys.
-                select(){ |i| index_to_metrics[i][0] == max_broad_mentsus }.
-                max_by(){ |i| index_to_metrics[i][1] }
+            max_pai_index = scores.keys.max_by(){ |i| scores[i] }
             
             p [:dahai, self.tehais[max_pai_index]]
             #if self.id == 0
@@ -77,88 +76,132 @@ class StatisticalPlayer < Player
     
     State = Struct.new(:visible_set, :num_invisible, :num_tsumos)
     
-    def get_hora_prob(remains, visible_set, num_visible)
+    # Probability to decrease >= 1 shanten in 2 turns.
+    def get_progress_prob(remains, visible_set, num_visible, current_shanten)
       
       state = State.new()
       state.visible_set = visible_set
       state.num_invisible = board.all_pais.size - num_visible
       state.num_tsumos = board.num_pipais / 4
       
-      (num_jantos, num_mentsus, janto_improvers, mentsu_improvers) = get_improvers(remains)
+      shanten = ShantenCounter.new(remains, current_shanten, [:normal])
+      if shanten.shanten > current_shanten
+        return 0.0
+      end
       
-      #p [:num, num_jantos, num_mentsus]
-      #p :janto
-      janto_imp_prob = get_prob_for_improvers(janto_improvers, state)
-      #p [:prob, janto_imp_prob]
-      #p :mentsu
-      mentsu_imp_prob = get_prob_for_improvers(mentsu_improvers, state)
-      #p [:prob, mentsu_imp_prob]
-      return [
-          num_jantos + num_mentsus,
-          janto_imp_prob ** (1 - num_jantos) * mentsu_imp_prob ** (4 - num_mentsus),
-      ]
-    end
-    
-    def get_prob_for_improvers(improvers, state)
-      return get_prob_for_improvers_with_monte_carlo(improvers, state)
-    end
-    
-    def get_prob_for_improvers_approximately(improvers, state)
-      req = MinRequiredPais2::Or.new(improvers.map(){ |ps| MinRequiredPais2::And.new(ps) })
-      #p req.to_s()
-      return get_prob_for_requirement(req, state)
-    end
-    
-    def get_prob_for_requirement(req, state)
-      case req
-        when MinRequiredPais2::PaiRequirement
-          num_same_invisible = 4 - state.visible_set[req.pai]
-          prob = 1.0 -
-              num_permutations(state.num_invisible - num_same_invisible, state.num_tsumos) /
-              num_permutations(state.num_invisible, state.num_tsumos).to_f()
-        when MinRequiredPais2::Or
-          neg_prob = 1.0
-          for child in req.children
-            neg_prob *= (1.0 - get_prob_for_requirement(child, state))
-          end
-          prob = 1.0 - neg_prob
-        when MinRequiredPais2::And
-          prob = 1.0
-          for child in req.children
-            prob *= get_prob_for_requirement(child, state)
-          end
+      #p [:remains, remains.join(" ")]
+      candidates = get_required_pais_candidates(shanten)
+      
+      single_cands = Set.new()
+      double_cands = Set.new()
+      for pais in candidates
+        case pais.size
+          when 1
+            single_cands.add(pais[0])
+          when 2
+            double_cands.add(pais)
+          else
+            raise("should not happen")
+        end
+      end
+      double_cands = double_cands.select(){ |pais| pais.all?(){ |pai| !single_cands.include?(pai) } }
+      #p [:single, single_cands.sort().join(" ")]
+      #p [:double, double_cands]
+      
+      # (p, *) or (*, p)
+      any_single_prob = single_cands.map(){ |pai| get_pai_prob(pai, state) }.inject(0.0, :+)
+      total_prob = 1.0 - (1.0 - any_single_prob) ** 2
+      
+      #p [:single_total, total_prob]
+      for pai1, pai2 in double_cands
+        prob1 = get_pai_prob(pai1, state)
+        #p [:prob, pai1, state]
+        prob2 = get_pai_prob(pai2, state)
+        #p [:prob, pai2, state]
+        if pai1 == pai2
+          # (p1, p1)
+          total_prob += prob1 * prob2
         else
-          raise("should not happen")
-      end
-      #p [:prob, req.to_s(), prob]
-      return prob
-    end
-    
-    def get_prob_for_improvers_with_monte_carlo(improvers, state)
-      invisibles = []
-      for pai in self.board.all_pais.uniq
-        next if pai.red?
-        (4 - state.visible_set[pai]).times() do
-          invisibles.push(pai)
+          # (p1, p2), (p2, p1)
+          total_prob += prob1 * prob2 * 2
         end
       end
-      meet_freq = 0
-      num_tries = 10000
-      num_tries.times() do
-        tsumos = invisibles.sample(state.num_tsumos)
-        meet = have_improvers?(to_pai_set(tsumos), improvers)
-        #p [:meet, tsumos.sort().join(" "), meet]
-        meet_freq += 1 if meet
-      end
-      return meet_freq.to_f() / num_tries
+      #p [:total_prob, total_prob]
+      return total_prob
     end
     
-    def have_improvers?(pai_set, improvers)
-      return improvers.any?() do |pais|
-        to_pai_set(pais).all?() do |pai, count|
-          pai_set[pai] >= count
+    # Pais required to decrease 1 shanten.
+    # Can be multiple pais, but not all multi-pai cases are included.
+    # - included: 45m for 13m
+    # - not included: 2m6s for 23m5s
+    def get_required_pais_candidates(shanten)
+      result = Set.new()
+      for mentsus in shanten.combinations
+        for janto_index in [nil] + (0...mentsus.size).to_a()
+          t_mentsus = mentsus.dup()
+          if janto_index
+            next if ![:toitsu, :kotsu].include?(mentsus[janto_index][0])
+            t_mentsus.delete_at(janto_index)
+          end
+          current_shanten =
+              -1 +
+              (janto_index ? 0 : 1) +
+              t_mentsus.map(){ |t, ps| 3 - ps.size }.sort()[0, 4].inject(0, :+)
+          #p [:current_shanten, janto_index, current_shanten, shanten.shanten]
+          next if current_shanten != shanten.shanten
+          num_groups = t_mentsus.select(){ |t, ps| ps.size >= 2 }.size
+          for type, pais in t_mentsus
+            rnums_cands = []
+            if !janto_index && pais.size == 1
+              # 1 -> janto
+              rnums_cands.push([0])
+            end
+            if !janto_index && pais.size == 2 && num_groups >= 5
+              # 2 -> janto
+              case type
+                when :ryanpen
+                  rnums_cands.push([0], [1])
+                when :kanta
+                  rnums_cands.push([0], [2])
+              end
+            end
+            if pais.size == 2
+              # 2 -> 3
+              case type
+                when :ryanpen
+                  rnums_cands.push([-1], [2])
+                when :kanta
+                  rnums_cands.push([1], [-2, -1], [3, 4])
+                when :toitsu
+                  rnums_cands.push([0], [-2, -1], [-1, 1], [1, 2])
+                else
+                  raise("should not happen")
+              end
+            end
+            if pais.size == 1 && num_groups < 4
+              # 1 -> 2
+              rnums_cands.push([-2], [-1], [0], [1], [2])
+            end
+            if pais.size == 1
+              # 1 -> 3
+              rnums_cands.push([-2, -1], [-1, 1], [1, 2], [0, 0])
+            end
+            for rnums in rnums_cands
+              in_range = rnums.all?() do |rn|
+                (rn == 0 || pais[0].type != "t") && (1..9).include?(pais[0].number + rn)
+              end
+              if in_range
+                result.add(rnums.map(){ |rn| Pai.new(pais[0].type, pais[0].number + rn) })
+              end
+            end
+          end
         end
       end
+      return result
+    end
+    
+    def get_pai_prob(pai, state)
+      return (4 - state.visible_set[pai]).to_f() / state.num_invisible
     end
     
     # This is too slow but left here as most precise baseline.
@@ -209,120 +252,6 @@ class StatisticalPlayer < Player
         end
       end
       return kotsus.size + num_shuntsus >= 4 && toitsus.size >= 1
-    end
-    
-    # NOTE: This doesn't output two pais in long distance e.g. 16m for 2345m for now.
-    def get_improvers(tehais)
-      tehai_set = to_pai_set(tehais)
-      cands = Set.new()
-      for pai, count in tehai_set
-        cands.add([pai])
-        cands.add([pai, pai])
-        if pai.type != "t"
-          for rs in [[-1], [1], [-2, -1], [-1, 1], [1, 2]]
-            pais = rs.map(){ |r| Pai.new(pai.type, pai.number + r) }
-            if pais.all?(){ |pai| (1..9).include?(pai.number) }
-              cands.add(pais)
-            end
-          end
-        end
-      end
-      #p [:cands, cands.to_a().sort()]
-      (tehai_num_jantos, tehai_num_mentsus) = num_mentsus(tehai_set)
-      #p [:tehai_num_mentsus, tehai_num_jantos, tehai_num_mentsus]
-      janto_improvers = Set.new()
-      mentsu_improvers = Set.new()
-      for pais in cands
-        pais.each(){ |pai| tehai_set[pai] += 1 }
-        (new_num_jantos, new_num_mentsus) = num_mentsus(tehai_set)
-        pais.each(){ |pai| tehai_set[pai] -= 1 }
-        if new_num_jantos + new_num_mentsus > tehai_num_jantos + tehai_num_mentsus
-          if new_num_jantos > tehai_num_jantos && pais.size == 1
-            janto_improvers.add(pais)
-          end
-          if new_num_mentsus > tehai_num_mentsus
-            mentsu_improvers.add(pais)
-          end
-        end
-      end
-      return [
-          tehai_num_jantos,
-          tehai_num_mentsus,
-          filter_improvers(janto_improvers),
-          filter_improvers(mentsu_improvers),
-      ]
-    end
-    
-    def filter_improvers(all_result)
-      filtered_result = Set.new()
-      for pais in all_result
-        case pais.size
-          when 1
-            filtered_result.add(pais)
-          when 2
-            if pais.all?(){ |pai| !all_result.include?([pai]) }
-              filtered_result.add(pais)
-            end
-          else
-            raise("should not happen")
-        end
-      end
-      return filtered_result
-    end
-    
-    def num_mentsus(pais)
-      pai_set = pais.is_a?(Hash) ? pais : to_pai_set(pais)
-      num_without_janto = num_3pai_mentsus(pai_set)
-      max_num_with_janto = 0
-      for pai in pai_set.keys.select(){ |pai| pai_set[pai] >= 2 }
-        pai_set[pai] -= 2
-        num = num_3pai_mentsus(pai_set)
-        max_num_with_janto = num if num > max_num_with_janto
-        pai_set[pai] += 2
-      end
-      # e.g. Prefers [0, 4] to [1, 3]
-      if max_num_with_janto == num_without_janto
-        return [1, max_num_with_janto]
-      else
-        return [0, num_without_janto]
-      end
-    end
-    
-    def num_3pai_mentsus(pai_set)
-      kotsu_pais = pai_set.keys.select(){ |pai| pai_set[pai] >= 3 }
-      return num_3pai_mentsus_recurse(pai_set, kotsu_pais)
-    end
-    
-    def num_3pai_mentsus_recurse(pai_set, kotsu_pais)
-      if kotsu_pais.empty?
-        return num_shuntsus(pai_set)
-      else
-        car_pai = kotsu_pais[0]
-        cdr_pais = kotsu_pais[1..-1]
-        num_without = num_3pai_mentsus_recurse(pai_set, cdr_pais)
-        pai_set[car_pai] -= 3
-        num_with = num_3pai_mentsus_recurse(pai_set, cdr_pais) + 1
-        pai_set[car_pai] += 3
-        return [num_without, num_with].max
-      end
-    end
-    
-    def num_shuntsus(pai_set)
-      pai_set = pai_set.dup()
-      num = 0
-      for pai in pai_set.keys.sort()
-        next if pai.type == "t"
-        shuntsu_pais = (0..2).map(){ |i| Pai.new(pai.type, pai.number + i) }
-        while shuntsu_pais.all?(){ |sp| pai_set[sp] > 0 }
-          shuntsu_pais.each(){ |sp| pai_set[sp] -= 1 }
-          num += 1
-        end
-      end
-      return num
-    end
-    
-    def num_permutations(n, m)
-      return ((n - m + 1)..n).inject(1, :*)
     end
     
     def to_pai_set(pais)

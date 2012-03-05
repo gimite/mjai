@@ -247,7 +247,7 @@ class MinRequiredPais2
           if self.empty?
             return "IMPOSSIBLE"
           else
-            return "(%s)" % @children.join(" | ")
+            return "(| %s)" % @children.join(" | ")
           end
         end
         
@@ -277,7 +277,7 @@ class MinRequiredPais2
           if self.empty?
             return "NEED_NOTHING"
           else
-            return "(%s)" % @children.join(" & ")
+            return "(& %s)" % @children.join(" & ")
           end
         end
         
@@ -349,7 +349,7 @@ class MinRequiredPais2
     
     def candidates
       all_candidates = []
-      #p [:seeds, @seed_candidates.size]
+      p [:seeds, @seed_candidates.size]
       for seed_set in @seed_candidates
         #pp [:seed, seed_set]
         for janto_shanten_decrease in [0, 1]
