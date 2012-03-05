@@ -1,12 +1,25 @@
 require "./mahjong"
 require "./min_required_pais"
+require "./danger_estimator"
 
 
 class StatisticalPlayer < Player
     
+    def initialize()
+      super()
+      @danger_tree = DangerEstimator::DecisionTree.new("data/danger.all.tree")
+    end
+    
     def respond_to_action(action)
       
-      if action.actor == self
+      if !action.actor
+        
+        case action.type
+          when :start_kyoku
+            @prereach_sutehais_map = {}
+        end
+        
+      elsif action.actor == self
         
         case action.type
           
@@ -27,6 +40,36 @@ class StatisticalPlayer < Player
             end
             p [:shanten, current_shanten]
             
+            if current_shanten == 0
+              sutehai_cands = self.tehais.uniq()
+            else
+              safe_probs = {}
+              for pai in self.tehais.uniq()
+                safe_probs[pai] = 1.0
+              end
+              has_reacher = false
+              for player in self.board.players
+                if player != self && player.reach?
+                  p [:reacher, player, @prereach_sutehais_map[player]]
+                  has_reacher = true
+                  scene = DangerEstimator::Scene.new(
+                      self.board, self, nil, player, @prereach_sutehais_map[player])
+                  for pai in safe_probs.keys
+                    if scene.anpai?(pai)
+                      safe_prob = 1.0
+                    else
+                      safe_prob = 1.0 - @danger_tree.estimate_prob(scene, pai)
+                    end
+                    p [:safe_prob, pai, safe_prob]
+                    safe_probs[pai] *= safe_prob
+                  end
+                end
+              end
+              max_safe_prob = safe_probs.values.max
+              sutehai_cands = safe_probs.keys.select(){ |pai| safe_probs[pai] == max_safe_prob }
+            end
+            p [:sutehai_cands, sutehai_cands]
+            
             visible = []
             visible += self.board.doras
             visible += self.tehais
@@ -36,7 +79,7 @@ class StatisticalPlayer < Player
             visible_set = to_pai_set(visible)
             
             scores = {}
-            for pai in self.tehais.uniq()
+            for pai in sutehai_cands
               #p [:pai, pai]
               idx = self.tehais.index(pai)
               remains = self.tehais.dup()
@@ -52,9 +95,10 @@ class StatisticalPlayer < Player
             
             p [:dahai, self.tehais[max_pai_index]]
             #if self.id == 0
+            if has_reacher
               print("> ")
               gets()
-            #end
+            end
             
             return create_action({:type => :dahai, :pai => self.tehais[max_pai_index]})
             
@@ -67,6 +111,8 @@ class StatisticalPlayer < Player
             if ShantenCounter.new(self.tehais + [action.pai], -1).shanten == -1
               return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
             end
+          when :reach_accepted
+            @prereach_sutehais_map[action.actor] = action.actor.sutehais.dup()
         end
         
       end
