@@ -390,7 +390,7 @@ class Player
     end
     
     def delete_tehai(pai)
-      pai_index = @tehais.index(pai)
+      pai_index = @tehais.index(pai) || @tehais.index(nil)
       raise("should not happen") if !pai_index
       @tehais.delete_at(pai_index)
     end
@@ -572,6 +572,9 @@ class Board
     
     def do_action(action)
       
+      if action.is_a?(Hash)
+        action = Action.new(action)
+      end
       @actor = action.actor if action.actor
       
       case action.type
@@ -633,40 +636,44 @@ class Board
         response = responses[i]
         raise("invalid actor") if response && response.actor != @players[i]
         is_actor = @players[i] == action.actor
-        case action.type
-          when :start_game, :start_kyoku, :haipai, :end_kyoku, :end_game,
-              :hora, :ryukyoku, :dora, :reach_accepted
-            valid = !response
-          when :tsumo
-            if is_actor
-              valid = response && [:dahai, :reach, :ankan, :kakan, :hora].include?(response.type)
-            else
+        if expect_response_from?(@players[i])
+          case action.type
+            when :start_game, :start_kyoku, :haipai, :end_kyoku, :end_game,
+                :hora, :ryukyoku, :dora, :reach_accepted
               valid = !response
-            end
-          when :dahai
-            if is_actor
-              valid = !response
-            else
-              valid = !response || [:chi, :pon, :daiminkan, :hora].include?(response.type)
-            end
-          when :chi, :pon, :reach
-            if is_actor
-              valid = response && response.type == :dahai
-            else
-              valid = !response
-            end
-          when :ankan, :daiminkan
-            # Actor should wait for tsumo.
-            valid = !response
-          when :kakan
-            if is_actor
+            when :tsumo
+              if is_actor
+                valid = response && [:dahai, :reach, :ankan, :kakan, :hora].include?(response.type)
+              else
+                valid = !response
+              end
+            when :dahai
+              if is_actor
+                valid = !response
+              else
+                valid = !response || [:chi, :pon, :daiminkan, :hora].include?(response.type)
+              end
+            when :chi, :pon, :reach
+              if is_actor
+                valid = response && response.type == :dahai
+              else
+                valid = !response
+              end
+            when :ankan, :daiminkan
               # Actor should wait for tsumo.
               valid = !response
+            when :kakan
+              if is_actor
+                # Actor should wait for tsumo.
+                valid = !response
+              else
+                valid = !response || response.type == :hora
+              end
             else
-              valid = !response || response.type == :hora
-            end
-          else
-            raise("unknown action type: #{action.type}")
+              raise("unknown action type: #{action.type}")
+          end
+        else
+          valid = !response
         end
         raise("bad response %p for %p" % [response, action]) if !valid
       end

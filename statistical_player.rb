@@ -95,10 +95,10 @@ class StatisticalPlayer < Player
             
             p [:dahai, self.tehais[max_pai_index]]
             #if self.id == 0
-            if has_reacher
-              print("> ")
-              gets()
-            end
+            #if has_reacher
+            #  print("> ")
+            #  gets()
+            #end
             
             return create_action({:type => :dahai, :pai => self.tehais[max_pai_index]})
             
@@ -128,7 +128,7 @@ class StatisticalPlayer < Player
       state = State.new()
       state.visible_set = visible_set
       state.num_invisible = board.all_pais.size - num_visible
-      state.num_tsumos = board.num_pipais / 4
+      #state.num_tsumos = board.num_pipais / 4
       
       shanten = ShantenCounter.new(remains, current_shanten, [:normal])
       if shanten.shanten > current_shanten
