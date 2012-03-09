@@ -33,7 +33,7 @@ class StatisticalPlayer < Player
                 when 0
                   if self.reach?
                     return create_action({:type => :dahai, :pai => action.pai})
-                  else
+                  elsif self.board.num_pipais >= 4
                     return create_action({:type => :reach})
                   end
               end
@@ -108,7 +108,8 @@ class StatisticalPlayer < Player
         
         case action.type
           when :dahai
-            if ShantenCounter.new(self.tehais + [action.pai], -1).shanten == -1
+            if ShantenCounter.new(self.tehais + [action.pai], -1).shanten == -1 &&
+                !self.furiten?
               return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
             end
           when :reach_accepted

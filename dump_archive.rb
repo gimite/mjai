@@ -2,8 +2,9 @@ require "./mahjong"
 
 
 for path in ARGV
-  archive = Archive.new(path)
-  archive.play_game() do |action|
+  archive = Archive.load(path)
+  archive.on_action() do |action|
     archive.dump_action(action)
   end
+  archive.play_game()
 end

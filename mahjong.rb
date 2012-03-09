@@ -1,5 +1,5 @@
 require "json"
-autoload :TenhouMjlogLoader, "./tenhou_mjlog_loader"
+autoload :TenhouArchive, "./tenhou_mjlog_loader"
 
 
 class Pai
@@ -389,9 +389,18 @@ class Player
       return ShantenCounter.new(@tehais, 0).shanten <= 0
     end
     
+    def furiten?
+      return false if @tehais.size % 3 != 1
+      return false if @tehais.include?(Pai::UNKNOWN)
+      tenpai_info = TenpaiInfo.new(@tehais)
+      return false if !tenpai_info.tenpai?
+      anpais = self.anpais
+      return tenpai_info.waited_pais.any?(){ |pai| anpais.include?(pai) }
+    end
+    
     def delete_tehai(pai)
-      pai_index = @tehais.index(pai) || @tehais.index(nil)
-      raise("should not happen") if !pai_index
+      pai_index = @tehais.index(pai) || @tehais.index(Pai::UNKNOWN)
+      raise("trying to delete %p which is not in tehais: %p" % [pai, @tehais]) if !pai_index
       @tehais.delete_at(pai_index)
     end
     
@@ -564,6 +573,7 @@ class Board
     attr_reader(:dora_markers)  # ドラ表示牌
     attr_reader(:previous_action)
     attr_reader(:all_pais)
+    attr_reader(:num_pipais)
     attr_accessor(:last)  # kari
     
     def on_action(&block)
@@ -596,6 +606,9 @@ class Board
           end
           @oya = action.oya
           @dora_markers = [action.dora_marker]
+          @num_pipais = @all_pais.size - 13 * 4 - 14
+        when :tsumo
+          @num_pipais -= 1
         when :dora
           @dora_markers.push(action.dora_marker)
       end
@@ -740,7 +753,7 @@ class ActiveBoard < Board
         @wanpais = @pipais.pop(14)
         dora_marker = @wanpais.pop()
         do_action(Action.new({:type => :start_kyoku, :oya => @next_oya, :dora_marker => dora_marker}))
-        gets() # kari
+        #gets() # kari
         for player in @players
           do_action(Action.new(
               {:type => :haipai, :actor => player, :pais => @pipais.pop(13) }))
@@ -884,24 +897,46 @@ class ActiveBoard < Board
       return @pipais.size
     end
     
+    def expect_response_from?(player)
+      return true
+    end
+    
 end
 
 
-class Archive < Board
+class Archive
     
-    def initialize(path)
-      super((0...4).map(){ PuppetPlayer.new() })
+    def self.load(path)
       case File.extname(path)
         when ".mjlog"
-          @loader = TenhouMjlogLoader.new(path, self)
+          return TenhouArchive.new(path)
+        when ".mjson"
+          return MjsonArchive.new(path)
         else
           raise("unknown format")
       end
     end
     
-    def play_game(&block)
-      on_action(&block) if block
-      @loader.play_game()
+end
+
+
+class MjsonArchive < Board
+    
+    def initialize(path)
+      super((0...4).map(){ PuppetPlayer.new() })
+      @path = path
+    end
+    
+    attr_reader(:path)
+    
+    def play_game()
+      File.foreach(@path) do |line|
+        do_action(Action.from_json(line.chomp(), self))
+      end
+    end
+    
+    def expect_response_from?(player)
+      return false
     end
     
 end

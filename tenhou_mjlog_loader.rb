@@ -12,7 +12,7 @@ class TenhouGame < Board
         module_function
         
         def pid_to_pai(pid)
-          return TenhouPai.new(pid ? get_pai(*decompose_pid(pid)) : nil, pid)
+          return TenhouPai.new(pid ? get_pai(*decompose_pid(pid)) : Pai::UNKNOWN, pid)
         end
         
         def decompose_pid(pid)
@@ -182,10 +182,19 @@ class TenhouGame < Board
           @names = escaped_names.map(){ |s| URI.decode(s) }
           return nil
         when "TAIKYOKU"
-          uri = self.path ? "http://tenhou.net/0/?log=" + File.basename(self.path, ".mjlog") : nil
+          oya = elem["oya"].to_i()
+          log_name = elem["log"] || File.basename(self.path, ".mjlog")
+          uri = "http://tenhou.net/0/?log=%s&tw=%d" % [log_name, (4 - oya) % 4]
+          @first_kyoku_started = false
           return do_action({:type => :start_game, :uri => uri, :names => @names})
         when "INIT"
           oya = elem["oya"].to_i()
+          if @first_kyoku_started
+            # Ends the previous kyoku. This is here because there can be multiple AGARIs in case of
+            # daburon, so we cannot detect the end of kyoku in AGARI.
+            do_action({:type => :end_kyoku})
+          end
+          @first_kyoku_started = true
           do_action({
             :type => :start_kyoku,
             :oya => self.players[oya],
@@ -205,7 +214,7 @@ class TenhouGame < Board
                 @tenhou_tehais = tenhou_pais
               end
             else
-              pais = [nil] * 13
+              pais = [Pai::UNKNOWN] * 13
             end
             do_action({:type => :haipai, :actor => self.players[player_id], :pais => pais})
           end
@@ -250,8 +259,9 @@ class TenhouGame < Board
             :target => self.players[elem["fromWho"].to_i()],
             :pai => pid_to_pai(elem["machi"]).pai,
           })
-          if !next_elem || next_elem.name != "AGARI"
+          if elem["owari"]
             do_action({:type => :end_kyoku})
+            do_action({:type => :end_game})
           end
           return nil
         when "RYUUKYOKU"
@@ -268,13 +278,18 @@ class TenhouGame < Board
           raise("unknown reason") if !reason
           # TODO add actor for some reasons
           do_action({:type => :ryukyoku, :reason => reason})
-          do_action({:type => :end_kyoku})
+          if elem["owari"]
+            do_action({:type => :end_kyoku})
+            do_action({:type => :end_game})
+          end
           return nil
         when "N"
           actor = self.players[elem["who"].to_i()]
           return do_action(FuroParser.new(elem["m"].to_i()).to_action(self, actor))
         when "DORA"
-          do_action({:type => :dora, :dora_marker => pid_to_pai(elem["hai"])})
+          do_action({:type => :dora, :dora_marker => pid_to_pai(elem["hai"]).pai})
+          return nil
+        when "FURITEN"
           return nil
         else
           raise("unknown tag name: %s" % elem.name)
@@ -313,7 +328,6 @@ class TenhouArchive < TenhouGame
           break  # Something is wrong.
         end
       end
-      do_action({:type => :end_game})
     end
     
     def expect_response_from?(player)
