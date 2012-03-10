@@ -157,7 +157,7 @@ module WithFields
 end
 
 
-class Serializable
+class JSONizable
     
     def self.define_fields(specs)
       @@field_specs = specs
@@ -168,7 +168,7 @@ class Serializable
       end
     end
     
-    def self.from_json(json, board)
+    def self.from_json(json, game)
       hash = JSON.parse(json)
       fields = {}
       for name, type in @@field_specs
@@ -180,7 +180,7 @@ class Serializable
           when :symbols
             obj = plain.map(){ |s| s.intern() }
           when :player
-            obj = board.players[plain]
+            obj = game.players[plain]
           when :pai
             obj = Pai.new(plain)
           when :pais
@@ -255,7 +255,7 @@ class Furo
 end
 
 
-class Action < Serializable
+class Action < JSONizable
     
     define_fields([
       [:type, :symbol],
@@ -294,7 +294,7 @@ class Player
     attr_reader(:sutehais)  # 捨牌 (鳴かれた牌を含む)
     attr_reader(:extra_anpais)  # sutehais以外のこのプレーヤに対する安牌
     attr_reader(:reach_ho_index)
-    attr_accessor(:board)
+    attr_accessor(:game)
     attr_accessor(:points)
     
     def anpais
@@ -307,11 +307,11 @@ class Player
     
     def process_action(action)
       
-      if @board.previous_action &&
-          @board.previous_action.type == :dahai &&
-          @board.previous_action.actor != self &&
+      if @game.previous_action &&
+          @game.previous_action.type == :dahai &&
+          @game.previous_action.actor != self &&
           action.type != :hora
-        @extra_anpais.push(@board.previous_action.pai)
+        @extra_anpais.push(@game.previous_action.pai)
       end
       
       case action.type
@@ -378,8 +378,8 @@ class Player
     end
     
     def jikaze
-      if @board.oya
-        return Pai.new("t", 1 + (4 + @id - @board.oya.id) % 4)
+      if @game.oya
+        return Pai.new("t", 1 + (4 + @id - @game.oya.id) % 4)
       else
         return nil
       end
@@ -460,13 +460,13 @@ class ShantenPlayer < Player
               end
               for pai in self.tehais
                 if self.tehais.select(){ |tp| tp == pai }.size >= 4
-                  #@board.last = true
+                  #@game.last = true
                   return create_action({:type => :ankan, :consumed => [pai] * 4})
                 end
               end
               pon = self.furos.find(){ |f| f.type == :pon && f.taken == action.pai }
               if pon
-                #@board.last = true
+                #@game.last = true
                 return create_action(
                     {:type => :kakan, :pai => action.pai, :consumed => [action.pai] * 3})
               end
@@ -493,7 +493,7 @@ class ShantenPlayer < Player
               return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
             elsif USE_FURO
               if self.tehais.select(){ |pai| pai == action.pai }.size >= 3
-                #@board.last = true
+                #@game.last = true
                 return create_action({
                   :type => :daiminkan,
                   :pai => action.pai,
@@ -543,20 +543,20 @@ class PipePlayer < Player
     
     def respond_to_action(action)
       @io.puts(action.to_json())
-      response = Action.from_json(@io.gets().chomp(), self.board)
+      response = Action.from_json(@io.gets().chomp(), self.game)
       return response.type == :none ? nil : response
     end
     
 end
 
 
-class Board
+class Game
     
     def initialize(players)
       @game_type = :one_kyoku
       @players = players
       for player in @players
-        player.board = self
+        player.game = self
       end
       @bakaze = nil
       @oya = nil
@@ -734,9 +734,9 @@ class Board
 end
 
 
-class ActiveBoard < Board
+class ActiveGame < Game
     
-    def play_game()
+    def play()
       do_action(Action.new({:type => :start_game}))
       @next_oya = @players[0]
       while !self.game_finished?
@@ -920,7 +920,7 @@ class Archive
 end
 
 
-class MjsonArchive < Board
+class MjsonArchive < Game
     
     def initialize(path)
       super((0...4).map(){ PuppetPlayer.new() })
@@ -929,7 +929,7 @@ class MjsonArchive < Board
     
     attr_reader(:path)
     
-    def play_game()
+    def play()
       File.foreach(@path) do |line|
         do_action(Action.from_json(line.chomp(), self))
       end

@@ -33,7 +33,7 @@ class StatisticalPlayer < Player
                 when 0
                   if self.reach?
                     return create_action({:type => :dahai, :pai => action.pai})
-                  elsif self.board.num_pipais >= 4
+                  elsif self.game.num_pipais >= 4
                     return create_action({:type => :reach})
                   end
               end
@@ -48,12 +48,12 @@ class StatisticalPlayer < Player
                 safe_probs[pai] = 1.0
               end
               has_reacher = false
-              for player in self.board.players
+              for player in self.game.players
                 if player != self && player.reach?
                   p [:reacher, player, @prereach_sutehais_map[player]]
                   has_reacher = true
                   scene = DangerEstimator::Scene.new(
-                      self.board, self, nil, player, @prereach_sutehais_map[player])
+                      self.game, self, nil, player, @prereach_sutehais_map[player])
                   for pai in safe_probs.keys
                     if scene.anpai?(pai)
                       safe_prob = 1.0
@@ -71,9 +71,9 @@ class StatisticalPlayer < Player
             p [:sutehai_cands, sutehai_cands]
             
             visible = []
-            visible += self.board.doras
+            visible += self.game.doras
             visible += self.tehais
-            for player in self.board.players
+            for player in self.game.players
               visible += player.ho + player.furos.map(){ |f| f.pais }.flatten()
             end
             visible_set = to_pai_set(visible)
@@ -128,8 +128,8 @@ class StatisticalPlayer < Player
       
       state = State.new()
       state.visible_set = visible_set
-      state.num_invisible = board.all_pais.size - num_visible
-      #state.num_tsumos = board.num_pipais / 4
+      state.num_invisible = game.all_pais.size - num_visible
+      #state.num_tsumos = game.num_pipais / 4
       
       shanten = ShantenCounter.new(remains, current_shanten, [:normal])
       if shanten.shanten > current_shanten
@@ -254,13 +254,13 @@ class StatisticalPlayer < Player
     # This is too slow but left here as most precise baseline.
     def get_hora_prob_with_monte_carlo(tehais, visible_set, num_visible)
       invisibles = []
-      for pai in self.board.all_pais.uniq
+      for pai in self.game.all_pais.uniq
         next if pai.red?
         (4 - visible_set[pai]).times() do
           invisibles.push(pai)
         end
       end
-      num_tsumos = board.num_pipais / 4
+      num_tsumos = game.num_pipais / 4
       hora_freq = 0
       num_tries = 1000
       num_tries.times() do
@@ -328,7 +328,7 @@ class StatisticalPlayer < Player
     
 end
 
-class MockBoard
+class MockGame
     
     def initialize()
       pais = (0...4).map() do |i|

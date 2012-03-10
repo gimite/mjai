@@ -41,9 +41,9 @@ class DangerEstimator
           return @@feature_names
         end
         
-        def initialize(board, me, dapai, reacher, prereach_sutehais)
+        def initialize(game, me, dapai, reacher, prereach_sutehais)
           
-          @board = board
+          @game = game
           @dapai = dapai
           @me = me
           @reacher = reacher
@@ -55,13 +55,13 @@ class DangerEstimator
           @prereach_sutehai_set = to_pai_set(@prereach_sutehais)
           @early_sutehai_set = to_pai_set(@prereach_sutehais[0...(@prereach_sutehais.size / 2)])
           @late_sutehai_set = to_pai_set(@prereach_sutehais[(@prereach_sutehais.size / 2)..-1])
-          @dora_set = to_pai_set(@board.doras)
+          @dora_set = to_pai_set(@game.doras)
           @tehai_set = to_pai_set(tehais)
           
           visible = []
-          visible += @board.doras
+          visible += @game.doras
           visible += @me.tehais
-          for player in @board.players
+          for player in @game.players
             visible += player.ho + player.furos.map(){ |f| f.pais }.flatten()
           end
           @visible_set = to_pai_set(visible)
@@ -272,7 +272,7 @@ class DangerEstimator
         end
         
         define_feature("bakaze") do |pai|
-          return pai == @board.bakaze
+          return pai == @game.bakaze
         end
         
         define_feature("jikaze") do |pai|
@@ -385,7 +385,7 @@ class DangerEstimator
           if pai.type == "t" && pai.number >= 5
             return 1
           else
-            return (pai == @board.bakaze ? 1 : 0) + (pai == @reacher.jikaze ? 1 : 0)
+            return (pai == @game.bakaze ? 1 : 0) + (pai == @reacher.jikaze ? 1 : 0)
           end
         end
         
@@ -452,7 +452,7 @@ class DangerEstimator
         prereach_sutehais = nil
         skip = false
         archive = Archive.new(input_path)
-        archive.play_game() do |action|
+        archive.play() do |action|
           archive.dump_action(action) if self.verbose
           case action.type
             

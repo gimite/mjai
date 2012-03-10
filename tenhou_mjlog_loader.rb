@@ -5,7 +5,7 @@ require "with_progress"
 require "./mahjong"
 
 
-class TenhouGame < Board
+class TenhouGame < Game
     
     module Util
         
@@ -64,7 +64,7 @@ class TenhouGame < Board
         
         attr_reader(:type, :target_dir, :taken, :consumed)
         
-        def to_action(board, actor)
+        def to_action(game, actor)
           params = {
             :type => @type,
             :actor => actor,
@@ -72,7 +72,7 @@ class TenhouGame < Board
             :consumed => @consumed,
           }
           if ![:ankan, :kakan].include?(@type)
-            params[:target] = board.players[(actor.id + @target_dir) % 4]
+            params[:target] = game.players[(actor.id + @target_dir) % 4]
           end
           return Action.new(params)
         end
@@ -319,7 +319,7 @@ class TenhouArchive < TenhouGame
       puts(@xml)
     end
     
-    def play_game()
+    def play()
       @doc = Nokogiri.XML(@xml)
       elems = @doc.root.children
       elems.each_with_index() do |elem, j|
@@ -349,7 +349,7 @@ if $0 == __FILE__
         archive.on_action() do |action|
           archive.dump_action(action)
         end
-        archive.play_game()
+        archive.play()
       end
     else
       raise("unknown")

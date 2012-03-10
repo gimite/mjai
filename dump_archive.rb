@@ -6,5 +6,5 @@ for path in ARGV
   archive.on_action() do |action|
     archive.dump_action(action)
   end
-  archive.play_game()
+  archive.play()
 end
