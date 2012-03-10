@@ -1,5 +1,6 @@
 require "mjai/game"
 require "mjai/action"
+require "mjai/hora"
 
 
 module Mjai

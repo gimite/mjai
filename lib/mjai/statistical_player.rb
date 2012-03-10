@@ -1,6 +1,7 @@
-require "./mahjong"
-require "./min_required_pais"
-require "./danger_estimator"
+require "mjai/pai"
+require "mjai/player"
+require "mjai/shanten_analysis"
+require "mjai/danger_estimator"
 
 
 module Mjai

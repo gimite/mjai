@@ -3,7 +3,8 @@
 require "set"
 require "optparse"
 require "with_progress"
-require "./mahjong"
+
+require "mjai/pai"
 
 
 module Mjai
@@ -718,9 +719,9 @@ module Mjai
     end
 
 
-    # For compatibility.
-    # TODO Remove this.
-    DecisionNode = DangerEstimator::DecisionNode
-    
-    
 end
+
+
+# For compatibility.
+# TODO Remove this.
+DecisionNode = Mjai::DangerEstimator::DecisionNode
