@@ -1,14 +1,14 @@
-require "mjai/game"
+require "mjai/archive"
 require "mjai/puppet_player"
 require "mjai/action"
 
 
 module Mjai
     
-    class MjsonArchive < Game
+    class MjsonArchive < Archive
         
         def initialize(path)
-          super((0...4).map(){ PuppetPlayer.new() })
+          super()
           @path = path
         end
         
@@ -18,10 +18,6 @@ module Mjai
           File.foreach(@path) do |line|
             do_action(Action.from_json(line.chomp(), self))
           end
-        end
-        
-        def expect_response_from?(player)
-          return false
         end
         
     end

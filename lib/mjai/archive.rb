@@ -1,9 +1,12 @@
+require "mjai/game"
+
+
 module Mjai
     
     autoload(:TenhouArchive, "mjai/tenhou_archive")
     autoload(:MjsonArchive, "mjai/mjson_archive")
     
-    class Archive
+    class Archive < Game
         
         def self.load(path)
           case File.extname(path)
@@ -14,6 +17,14 @@ module Mjai
             else
               raise("unknown format")
           end
+        end
+        
+        def initialize()
+          super((0...4).map(){ PuppetPlayer.new() })
+        end
+        
+        def expect_response_from?(player)
+          return false
         end
         
     end

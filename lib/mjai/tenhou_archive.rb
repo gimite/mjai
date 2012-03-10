@@ -11,12 +11,142 @@ require "mjai/puppet_player"
 
 module Mjai
 
-
-    class TenhouGame < Game
+    class TenhouArchive < Archive
         
         module Util
             
-            module_function
+            attr_reader(:tenhou_tehais)
+            
+            def on_tenhou_event(elem, next_elem = nil)
+              case elem.name
+                when "SHUFFLE", "GO", "BYE"
+                  # BYE: log out
+                  return nil
+                when "UN"
+                  escaped_names = (0...4).map(){ |i| elem["n%d" % i] }
+                  return :broken if escaped_names.index(nil)  # Something is wrong.
+                  @names = escaped_names.map(){ |s| URI.decode(s) }
+                  return nil
+                when "TAIKYOKU"
+                  oya = elem["oya"].to_i()
+                  log_name = elem["log"] || File.basename(self.path, ".mjlog")
+                  uri = "http://tenhou.net/0/?log=%s&tw=%d" % [log_name, (4 - oya) % 4]
+                  @first_kyoku_started = false
+                  return do_action({:type => :start_game, :uri => uri, :names => @names})
+                when "INIT"
+                  oya = elem["oya"].to_i()
+                  if @first_kyoku_started
+                    # Ends the previous kyoku. This is here because there can be multiple AGARIs in case of
+                    # daburon, so we cannot detect the end of kyoku in AGARI.
+                    do_action({:type => :end_kyoku})
+                  end
+                  @first_kyoku_started = true
+                  do_action({
+                    :type => :start_kyoku,
+                    :oya => self.players[oya],
+                    :dora_marker => pid_to_pai(elem["seed"].split(/,/)[5]).pai,
+                  })
+                  for i in 0...4
+                    player_id = (oya + i) % 4
+                    if player_id == 0
+                      hai_str = elem["hai"] || elem["hai0"]
+                    else
+                      hai_str = elem["hai%d" % player_id]
+                    end
+                    if hai_str
+                      tenhou_pais = hai_str.split(/,/).map(){ |s| pid_to_pai(s) }
+                      pais = tenhou_pais.map(){ |tp| tp.pai }
+                      if player_id == 0
+                        @tenhou_tehais = tenhou_pais
+                      end
+                    else
+                      pais = [Pai::UNKNOWN] * 13
+                    end
+                    do_action({:type => :haipai, :actor => self.players[player_id], :pais => pais})
+                  end
+                  return nil
+                when /^([T-W])(\d+)?$/i
+                  player_id = ["T", "U", "V", "W"].index($1.upcase)
+                  pid = $2
+                  tenhou_pai = pid_to_pai(pid)
+                  if player_id == 0
+                    @tenhou_tehais.push(tenhou_pai)
+                  end
+                  return do_action({
+                      :type => :tsumo,
+                      :actor => self.players[player_id],
+                      :pai => tenhou_pai.pai,
+                  })
+                when /^([D-G])(\d+)?$/i
+                  player_id = ["D", "E", "F", "G"].index($1.upcase)
+                  pid = $2
+                  if player_id == 0
+                    @tenhou_tehais.delete_if(){ |tp| tp.pid == pid }
+                  end
+                  return do_action({
+                      :type => :dahai,
+                      :actor => self.players[player_id],
+                      :pai => pid_to_pai(pid).pai,
+                  })
+                when "REACH"
+                  actor = self.players[elem["who"].to_i()]
+                  case elem["step"]
+                    when "1"
+                      return do_action({:type => :reach, :actor => actor})
+                    when "2"
+                      return do_action({:type => :reach_accepted, :actor => actor})
+                    else
+                      raise("should not happen")
+                  end
+                when "AGARI"
+                  do_action({
+                    :type => :hora,
+                    :actor => self.players[elem["who"].to_i()],
+                    :target => self.players[elem["fromWho"].to_i()],
+                    :pai => pid_to_pai(elem["machi"]).pai,
+                  })
+                  if elem["owari"]
+                    do_action({:type => :end_kyoku})
+                    do_action({:type => :end_game})
+                  end
+                  return nil
+                when "RYUUKYOKU"
+                  reason_map = {
+                    "yao9" => :kyushukyuhai,
+                    "kaze4" => :sufonrenta,
+                    "reach4" => :suchareach,
+                    "ron3" => :sanchaho,
+                    "nm" => :nagashimangan,
+                    "kan4" => :sukaikan,
+                    nil => :fanpai,
+                  }
+                  reason = reason_map[elem["type"]]
+                  raise("unknown reason") if !reason
+                  # TODO add actor for some reasons
+                  do_action({:type => :ryukyoku, :reason => reason})
+                  if elem["owari"]
+                    do_action({:type => :end_kyoku})
+                    do_action({:type => :end_game})
+                  end
+                  return nil
+                when "N"
+                  actor = self.players[elem["who"].to_i()]
+                  return do_action(TenhouFuro.new(elem["m"].to_i()).to_action(self, actor))
+                when "DORA"
+                  do_action({:type => :dora, :dora_marker => pid_to_pai(elem["hai"]).pai})
+                  return nil
+                when "FURITEN"
+                  return nil
+                else
+                  raise("unknown tag name: %s" % elem.name)
+              end
+            end
+            
+            def path
+              return nil
+            end
+            
+          module_function
             
             def pid_to_pai(pid)
               return TenhouPai.new(pid ? get_pai(*decompose_pid(pid)) : Pai::UNKNOWN, pid)
@@ -43,7 +173,7 @@ module Mjai
         TenhouPai = Struct.new(:pai, :pid)
         
         # http://p.tenhou.net/img/mentsu136.txt
-        class FuroParser
+        class TenhouFuro
             
             include(Util)
             
@@ -176,144 +306,8 @@ module Mjai
         
         include(Util)
         
-        attr_reader(:tenhou_tehais)
-        
-        def on_tenhou_event(elem, next_elem = nil)
-          case elem.name
-            when "SHUFFLE", "GO", "BYE"
-              # BYE: log out
-              return nil
-            when "UN"
-              escaped_names = (0...4).map(){ |i| elem["n%d" % i] }
-              return :broken if escaped_names.index(nil)  # Something is wrong.
-              @names = escaped_names.map(){ |s| URI.decode(s) }
-              return nil
-            when "TAIKYOKU"
-              oya = elem["oya"].to_i()
-              log_name = elem["log"] || File.basename(self.path, ".mjlog")
-              uri = "http://tenhou.net/0/?log=%s&tw=%d" % [log_name, (4 - oya) % 4]
-              @first_kyoku_started = false
-              return do_action({:type => :start_game, :uri => uri, :names => @names})
-            when "INIT"
-              oya = elem["oya"].to_i()
-              if @first_kyoku_started
-                # Ends the previous kyoku. This is here because there can be multiple AGARIs in case of
-                # daburon, so we cannot detect the end of kyoku in AGARI.
-                do_action({:type => :end_kyoku})
-              end
-              @first_kyoku_started = true
-              do_action({
-                :type => :start_kyoku,
-                :oya => self.players[oya],
-                :dora_marker => pid_to_pai(elem["seed"].split(/,/)[5]).pai,
-              })
-              for i in 0...4
-                player_id = (oya + i) % 4
-                if player_id == 0
-                  hai_str = elem["hai"] || elem["hai0"]
-                else
-                  hai_str = elem["hai%d" % player_id]
-                end
-                if hai_str
-                  tenhou_pais = hai_str.split(/,/).map(){ |s| pid_to_pai(s) }
-                  pais = tenhou_pais.map(){ |tp| tp.pai }
-                  if player_id == 0
-                    @tenhou_tehais = tenhou_pais
-                  end
-                else
-                  pais = [Pai::UNKNOWN] * 13
-                end
-                do_action({:type => :haipai, :actor => self.players[player_id], :pais => pais})
-              end
-              return nil
-            when /^([T-W])(\d+)?$/i
-              player_id = ["T", "U", "V", "W"].index($1.upcase)
-              pid = $2
-              tenhou_pai = pid_to_pai(pid)
-              if player_id == 0
-                @tenhou_tehais.push(tenhou_pai)
-              end
-              return do_action({
-                  :type => :tsumo,
-                  :actor => self.players[player_id],
-                  :pai => tenhou_pai.pai,
-              })
-            when /^([D-G])(\d+)?$/i
-              player_id = ["D", "E", "F", "G"].index($1.upcase)
-              pid = $2
-              if player_id == 0
-                @tenhou_tehais.delete_if(){ |tp| tp.pid == pid }
-              end
-              return do_action({
-                  :type => :dahai,
-                  :actor => self.players[player_id],
-                  :pai => pid_to_pai(pid).pai,
-              })
-            when "REACH"
-              actor = self.players[elem["who"].to_i()]
-              case elem["step"]
-                when "1"
-                  return do_action({:type => :reach, :actor => actor})
-                when "2"
-                  return do_action({:type => :reach_accepted, :actor => actor})
-                else
-                  raise("should not happen")
-              end
-            when "AGARI"
-              do_action({
-                :type => :hora,
-                :actor => self.players[elem["who"].to_i()],
-                :target => self.players[elem["fromWho"].to_i()],
-                :pai => pid_to_pai(elem["machi"]).pai,
-              })
-              if elem["owari"]
-                do_action({:type => :end_kyoku})
-                do_action({:type => :end_game})
-              end
-              return nil
-            when "RYUUKYOKU"
-              reason_map = {
-                "yao9" => :kyushukyuhai,
-                "kaze4" => :sufonrenta,
-                "reach4" => :suchareach,
-                "ron3" => :sanchaho,
-                "nm" => :nagashimangan,
-                "kan4" => :sukaikan,
-                nil => :fanpai,
-              }
-              reason = reason_map[elem["type"]]
-              raise("unknown reason") if !reason
-              # TODO add actor for some reasons
-              do_action({:type => :ryukyoku, :reason => reason})
-              if elem["owari"]
-                do_action({:type => :end_kyoku})
-                do_action({:type => :end_game})
-              end
-              return nil
-            when "N"
-              actor = self.players[elem["who"].to_i()]
-              return do_action(FuroParser.new(elem["m"].to_i()).to_action(self, actor))
-            when "DORA"
-              do_action({:type => :dora, :dora_marker => pid_to_pai(elem["hai"]).pai})
-              return nil
-            when "FURITEN"
-              return nil
-            else
-              raise("unknown tag name: %s" % elem.name)
-          end
-        end
-        
-        def path
-          return nil
-        end
-        
-    end
-
-
-    class TenhouArchive < TenhouGame
-        
         def initialize(path)
-          super((0...4).map(){ PuppetPlayer.new() })
+          super()
           @path = path
           Zlib::GzipReader.open(path) do |f|
             @xml = f.read().force_encoding("utf-8")
@@ -334,11 +328,6 @@ module Mjai
           end
         end
         
-        def expect_response_from?(player)
-          return false
-        end
-        
     end
-
 
 end
