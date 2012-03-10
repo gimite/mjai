@@ -1,3 +1,5 @@
+require "ostruct"
+
 require "mjai/pai"
 require "mjai/tenpai_analysis"
 
@@ -8,6 +10,7 @@ module Mjai
         
         def initialize()
           @points = 25000
+          @attributes = OpenStruct.new()
         end
         
         attr_reader(:id)
@@ -18,6 +21,7 @@ module Mjai
         attr_reader(:sutehais)  # 捨牌 (鳴かれた牌を含む)
         attr_reader(:extra_anpais)  # sutehais以外のこのプレーヤに対する安牌
         attr_reader(:reach_ho_index)
+        attr_reader(:attributes)
         attr_accessor(:game)
         attr_accessor(:points)
         

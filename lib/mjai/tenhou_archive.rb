@@ -15,8 +15,6 @@ module Mjai
         
         module Util
             
-            attr_reader(:tenhou_tehais)
-            
             def on_tenhou_event(elem, next_elem = nil)
               case elem.name
                 when "SHUFFLE", "GO", "BYE"
@@ -36,15 +34,15 @@ module Mjai
                 when "INIT"
                   oya = elem["oya"].to_i()
                   if @first_kyoku_started
-                    # Ends the previous kyoku. This is here because there can be multiple AGARIs in case of
-                    # daburon, so we cannot detect the end of kyoku in AGARI.
+                    # Ends the previous kyoku. This is here because there can be multiple AGARIs in
+                    # case of daburon, so we cannot detect the end of kyoku in AGARI.
                     do_action({:type => :end_kyoku})
                   end
                   @first_kyoku_started = true
                   do_action({
                     :type => :start_kyoku,
                     :oya => self.players[oya],
-                    :dora_marker => pid_to_pai(elem["seed"].split(/,/)[5]).pai,
+                    :dora_marker => pid_to_pai(elem["seed"].split(/,/)[5]),
                   })
                   for i in 0...4
                     player_id = (oya + i) % 4
@@ -53,40 +51,29 @@ module Mjai
                     else
                       hai_str = elem["hai%d" % player_id]
                     end
-                    if hai_str
-                      tenhou_pais = hai_str.split(/,/).map(){ |s| pid_to_pai(s) }
-                      pais = tenhou_pais.map(){ |tp| tp.pai }
-                      if player_id == 0
-                        @tenhou_tehais = tenhou_pais
-                      end
-                    else
-                      pais = [Pai::UNKNOWN] * 13
-                    end
+                    pids = hai_str ? hai_str.split(/,/) : [nil] * 13
+                    self.players[player_id].attributes.tenhou_tehai_pids = pids
+                    pais = pids.map(){ |s| pid_to_pai(s) }
                     do_action({:type => :haipai, :actor => self.players[player_id], :pais => pais})
                   end
                   return nil
                 when /^([T-W])(\d+)?$/i
                   player_id = ["T", "U", "V", "W"].index($1.upcase)
                   pid = $2
-                  tenhou_pai = pid_to_pai(pid)
-                  if player_id == 0
-                    @tenhou_tehais.push(tenhou_pai)
-                  end
+                  self.players[player_id].attributes.tenhou_tehai_pids.push(pid)
                   return do_action({
                       :type => :tsumo,
                       :actor => self.players[player_id],
-                      :pai => tenhou_pai.pai,
+                      :pai => pid_to_pai(pid),
                   })
                 when /^([D-G])(\d+)?$/i
                   player_id = ["D", "E", "F", "G"].index($1.upcase)
                   pid = $2
-                  if player_id == 0
-                    @tenhou_tehais.delete_if(){ |tp| tp.pid == pid }
-                  end
+                  self.players[player_id].attributes.tenhou_tehai_pids.delete(pid)
                   return do_action({
                       :type => :dahai,
                       :actor => self.players[player_id],
-                      :pai => pid_to_pai(pid).pai,
+                      :pai => pid_to_pai(pid),
                   })
                 when "REACH"
                   actor = self.players[elem["who"].to_i()]
@@ -103,7 +90,7 @@ module Mjai
                     :type => :hora,
                     :actor => self.players[elem["who"].to_i()],
                     :target => self.players[elem["fromWho"].to_i()],
-                    :pai => pid_to_pai(elem["machi"]).pai,
+                    :pai => pid_to_pai(elem["machi"]),
                   })
                   if elem["owari"]
                     do_action({:type => :end_kyoku})
@@ -133,7 +120,7 @@ module Mjai
                   actor = self.players[elem["who"].to_i()]
                   return do_action(TenhouFuro.new(elem["m"].to_i()).to_action(self, actor))
                 when "DORA"
-                  do_action({:type => :dora, :dora_marker => pid_to_pai(elem["hai"]).pai})
+                  do_action({:type => :dora, :dora_marker => pid_to_pai(elem["hai"])})
                   return nil
                 when "FURITEN"
                   return nil
@@ -149,7 +136,7 @@ module Mjai
           module_function
             
             def pid_to_pai(pid)
-              return TenhouPai.new(pid ? get_pai(*decompose_pid(pid)) : Pai::UNKNOWN, pid)
+              return pid ? get_pai(*decompose_pid(pid)) : Pai::UNKNOWN
             end
             
             def decompose_pid(pid)
@@ -169,8 +156,6 @@ module Mjai
             end
             
         end
-        
-        TenhouPai = Struct.new(:pai, :pid)
         
         # http://p.tenhou.net/img/mentsu136.txt
         class TenhouFuro
