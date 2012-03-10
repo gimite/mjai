@@ -35,11 +35,30 @@ module Mjai
           @on_action = block
         end
         
+        # Executes the action and returns responses for it from players.
         def do_action(action)
           
           if action.is_a?(Hash)
             action = Action.new(action)
           end
+          
+          update_state(action)
+          
+          @on_action.call(action) if @on_action
+          
+          responses = (0...4).map() do |i|
+            @players[i].respond_to_action(action_in_view(action, i))
+          end
+          validate_responses(responses, action)
+          
+          @previous_action = action
+          return responses
+          
+        end
+        
+        # Updates internal state of Game and Player objects by the action.
+        def update_state(action)
+          
           @actor = action.actor if action.actor
           
           case action.type
@@ -68,18 +87,9 @@ module Mjai
               @dora_markers.push(action.dora_marker)
           end
           
-          actions = (0...4).map(){ |i| action_in_view(action, i) }
           for i in 0...4
-            @players[i].process_action(actions[i])
+            @players[i].update_state(action_in_view(action, i))
           end
-          
-          @on_action.call(action) if @on_action
-          
-          responses = (0...4).map(){ |i| @players[i].respond_to_action(actions[i]) }
-          validate_responses(responses, action)
-          
-          @previous_action = action
-          return responses
           
         end
         

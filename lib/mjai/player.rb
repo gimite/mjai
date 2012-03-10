@@ -29,7 +29,7 @@ module Mjai
           return @reach
         end
         
-        def process_action(action)
+        def update_state(action)
           
           if @game.previous_action &&
               @game.previous_action.type == :dahai &&
