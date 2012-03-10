@@ -3,7 +3,7 @@ require "mjai/pai"
 
 module Mjai
     
-    class ShantenCounter
+    class ShantenAnalysis
         
         # ryanpen = 両面 or 辺搭
         MENTSU_TYPES = [:kotsu, :shuntsu, :toitsu, :ryanpen, :kanta, :single]
@@ -31,13 +31,13 @@ module Mjai
           100.times() do
             pais = all_pais.sample(14).sort()
             p pais.join(" ")
-            shanten = ShantenCounter.count(pais)
+            shanten = ShantenAnalysis.count(pais)
             p shanten
 =begin
             for i in 0...pais.size
               remains_pais = pais.dup()
               remains_pais.delete_at(i)
-              if ShantenCounter.count(remains_pais) == shanten
+              if ShantenAnalysis.count(remains_pais) == shanten
                 p pais[i]
               end
             end

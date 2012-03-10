@@ -4,13 +4,13 @@ require "mjai/pai"
 
 module Mjai
     
-    class TenpaiInfo
+    class TenpaiAnalysis
         
         ALL_YAOCHUS = Pai.parse_pais("19m19s19pESWNPFC")
         
         def initialize(pais)
           @pais = pais
-          @shanten = ShantenCounter.new(@pais, 0)
+          @shanten = ShantenAnalysis.new(@pais, 0)
         end
         
         def tenpai?

@@ -16,7 +16,7 @@ module Mjai
             case action.type
               
               when :tsumo, :chi, :pon, :reach
-                shanten = ShantenCounter.new(self.tehais).shanten
+                shanten = ShantenAnalysis.new(self.tehais).shanten
                 if action.type == :tsumo
                   case shanten
                     when -1
@@ -41,7 +41,7 @@ module Mjai
                 (self.tehais.size - 1).downto(0) do |i|
                   remains = self.tehais.dup()
                   remains.delete_at(i)
-                  if ShantenCounter.new(remains, shanten).shanten == shanten
+                  if ShantenAnalysis.new(remains, shanten).shanten == shanten
                     sutehai = self.tehais[i]
                     break
                   end
@@ -55,7 +55,7 @@ module Mjai
             
             case action.type
               when :dahai
-                if ShantenCounter.new(self.tehais + [action.pai]).shanten == -1
+                if ShantenAnalysis.new(self.tehais + [action.pai]).shanten == -1
                   return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
                 elsif USE_FURO
                   if self.tehais.select(){ |pai| pai == action.pai }.size >= 3

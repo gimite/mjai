@@ -8,10 +8,10 @@ module Mjai
     class MinRequiredPais
         
         def initialize(pais_or_shanten, num_allowed_extra = 0)
-          if pais_or_shanten.is_a?(ShantenCounter)
+          if pais_or_shanten.is_a?(ShantenAnalysis)
             @shanten = pais_or_shanten
           else
-            @shanten = ShantenCounter.new(pais_or_shanten, nil, [:normal])
+            @shanten = ShantenAnalysis.new(pais_or_shanten, nil, [:normal])
           end
           @max_required_pais = @shanten.shanten + 1 + num_allowed_extra
           @seed_mentsus_candidates = get_seed_mentsus_candidates()
@@ -162,7 +162,7 @@ module Mjai
           10.times() do
             pais = all_pais.sample(14).sort()
             if verbose
-              puts("%s (%d)" % [pais.join(" "), ShantenCounter.new(pais, nil, [:normal]).shanten])
+              puts("%s (%d)" % [pais.join(" "), ShantenAnalysis.new(pais, nil, [:normal]).shanten])
             end
             cands = MinRequiredPais.new(pais, num_allowed_extra).candidates
             if verbose
@@ -335,10 +335,10 @@ module Mjai
           @cache = {}
           @mentsus_to_seeds = {}
           @required_pais_for_mentsu_cache = {}
-          if pais_or_shanten.is_a?(ShantenCounter)
+          if pais_or_shanten.is_a?(ShantenAnalysis)
             @shanten = pais_or_shanten
           else
-            @shanten = ShantenCounter.new(pais_or_shanten, nil, [:normal])
+            @shanten = ShantenAnalysis.new(pais_or_shanten, nil, [:normal])
           end
           @goal_shanten = goal_shanten
           @goal_shanten_decrease = @shanten.shanten - goal_shanten
@@ -535,7 +535,7 @@ module Mjai
               (1..7).map(){ |n| Pai.new("t", n) }) * 4
           while true
             pais = all_pais.sample(13).sort()
-            shanten = ShantenCounter.new(pais, nil, [:normal])
+            shanten = ShantenAnalysis.new(pais, nil, [:normal])
             if verbose
               puts("%s (%d)" % [pais.join(" "), shanten.shanten])
             end

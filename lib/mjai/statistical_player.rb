@@ -27,7 +27,7 @@ module Mjai
               
               when :tsumo, :chi, :pon, :reach
                 
-                current_shanten = ShantenCounter.new(self.tehais, nil, [:normal]).shanten
+                current_shanten = ShantenAnalysis.new(self.tehais, nil, [:normal]).shanten
                 if action.type == :tsumo
                   case current_shanten
                     when -1
@@ -110,7 +110,7 @@ module Mjai
             
             case action.type
               when :dahai
-                if ShantenCounter.new(self.tehais + [action.pai], -1).shanten == -1 &&
+                if ShantenAnalysis.new(self.tehais + [action.pai], -1).shanten == -1 &&
                     !self.furiten?
                   return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
                 end
@@ -133,7 +133,7 @@ module Mjai
           state.num_invisible = game.all_pais.size - num_visible
           #state.num_tsumos = game.num_pipais / 4
           
-          shanten = ShantenCounter.new(remains, current_shanten, [:normal])
+          shanten = ShantenAnalysis.new(remains, current_shanten, [:normal])
           if shanten.shanten > current_shanten
             return 0.0
           end
@@ -272,7 +272,7 @@ module Mjai
             can_be = can_be_hora?(pais)
             #p [:can_be, can_be]
             next if !can_be
-            shanten = ShantenCounter.new(pais, -1, [:normal], 14, false)
+            shanten = ShantenAnalysis.new(pais, -1, [:normal], 14, false)
             #pp [:shanten, tehais, tsumos, shanten.shanten]
             #if shanten.shanten == -1
             #  pp [:comb, shanten.combinations[0]]

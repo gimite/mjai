@@ -110,13 +110,13 @@ module Mjai
         end
         
         def tenpai?
-          return ShantenCounter.new(@tehais, 0).shanten <= 0
+          return ShantenAnalysis.new(@tehais, 0).shanten <= 0
         end
         
         def furiten?
           return false if @tehais.size % 3 != 1
           return false if @tehais.include?(Pai::UNKNOWN)
-          tenpai_info = TenpaiInfo.new(@tehais)
+          tenpai_info = TenpaiAnalysis.new(@tehais)
           return false if !tenpai_info.tenpai?
           anpais = self.anpais
           return tenpai_info.waited_pais.any?(){ |pai| anpais.include?(pai) }

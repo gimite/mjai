@@ -476,7 +476,7 @@ module Mjai
                   end
                   next if skip
                   reacher = action.actor
-                  waited = TenpaiInfo.new(action.actor.tehais).waited_pais
+                  waited = TenpaiAnalysis.new(action.actor.tehais).waited_pais
                   prereach_sutehais = reacher.sutehais.dup()
                 
                 when :dahai

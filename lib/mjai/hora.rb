@@ -487,7 +487,7 @@ module Mjai
           @num_akadoras = @all_pais.select(){ |pai| pai.red? }.size
           
           num_same_as_taken = @free_pais.select(){ |pai| pai.same_symbol?(self.taken) }.size
-          @shanten = ShantenCounter.new(@free_pais, -1)
+          @shanten = ShantenAnalysis.new(@free_pais, -1)
           raise("not hora") if @shanten.shanten > -1
           unflatten_cands = @shanten.combinations.map() do |c|
             (0...num_same_as_taken).map(){ |i| Candidate.new(self, c, i) }
