@@ -1,5 +1,6 @@
 require "json"
 
+
 $stdin.sync = true
 $stdout.sync = true
 

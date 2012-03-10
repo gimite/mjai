@@ -1,6 +1,9 @@
 require "set"
 require "forwardable"
-require "./mahjong"
+
+require "mjai/shanten_analysis"
+require "mjai/pai"
+require "mjai/with_fields"
 
 
 module Mjai

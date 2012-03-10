@@ -2,7 +2,11 @@ require "zlib"
 require "uri"
 require "nokogiri"
 require "with_progress"
-require "./mahjong"
+
+require "mjai/game"
+require "mjai/pai"
+require "mjai/action"
+require "mjai/puppet_player"
 
 
 module Mjai
@@ -317,10 +321,7 @@ module Mjai
         end
         
         attr_reader(:path)
-        
-        def dump_xml()
-          puts(@xml)
-        end
+        attr_reader(:xml)
         
         def play()
           @doc = Nokogiri.XML(@xml)
@@ -340,24 +341,4 @@ module Mjai
     end
 
 
-end
-
-
-if $0 == __FILE__
-  case ARGV[0]
-    when "dump"
-      loader = Mjai::TenhouMjlogLoader.new(ARGV[1])
-      loader.dump_xml()
-    when "play"
-      ARGV[1..-1].each_with_progress() do |path|
-        puts("# Original file: %s" % path)
-        archive = Mjai::TenhouArchive.new(path)
-        archive.on_action() do |action|
-          archive.dump_action(action)
-        end
-        archive.play()
-      end
-    else
-      raise("unknown")
-  end
 end

@@ -1,8 +1,13 @@
+$LOAD_PATH.unshift(File.dirname(__FILE__) + "/../lib")
+
 require "test/unit"
-require "./min_required_pais"
+
+require "mjai/min_required_pais"
 
 
 class TC_MinRequiredPais < Test::Unit::TestCase
+    
+    include(Mjai)
     
     def to_pais_set(strs)
       return Set.new(strs.map(){ |s| Pai.parse_pais(s) })

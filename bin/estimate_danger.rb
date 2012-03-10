@@ -1,6 +1,8 @@
 # coding: utf-8
 
-require "./danger_estimator"
+$LOAD_PATH.unshift(File.dirname(__FILE__) + "/../lib")
+
+require "mjai/danger_estimator"
 
 
 INTERESTING_CRITERIA = [

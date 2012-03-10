@@ -1,8 +1,14 @@
+$LOAD_PATH.unshift(File.dirname(__FILE__) + "/../lib")
+
 require "test/unit"
-require "./hora"
+
+require "mjai/hora"
+require "mjai/furo"
 
 
 class TC_Hora < Test::Unit::TestCase
+    
+    include(Mjai)
     
     DEFAULT_PARAMS = {
       :furos => [],

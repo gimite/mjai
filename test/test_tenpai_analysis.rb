@@ -1,28 +1,13 @@
+$LOAD_PATH.unshift(File.dirname(__FILE__) + "/../lib")
+
 require "test/unit"
-require "./mahjong"
-require "./tenhou_mjlog_loader"
+
+require "mjai/tenpai_analysis"
 
 
-class TC_Mahjong < Test::Unit::TestCase
+class TC_TenpaiAnalysis < Test::Unit::TestCase
     
-    def test_shanten_counter()
-      
-      assert_equal(-1, ShantenCounter.new(Pai.parse_pais("123m456p789sNNNFF"), -1).shanten)
-      assert_equal(-1, ShantenCounter.new(Pai.parse_pais("114477m114477sCC"), -1).shanten)
-      assert_equal(-1, ShantenCounter.new(Pai.parse_pais("19m19s19pESWNPFCC"), -1).shanten)
-      
-      assert_equal(-1, ShantenCounter.new(Pai.parse_pais("123m456p789sNNNFF")).shanten)
-      assert_equal(0, ShantenCounter.new(Pai.parse_pais("123m456p789sNNNF")).shanten)
-      assert_equal(1, ShantenCounter.new(Pai.parse_pais("12m45p789sNNNFFPC")).shanten)
-      assert_equal(1, ShantenCounter.new(Pai.parse_pais("114477m11447sFP")).shanten)
-      assert_equal(1, ShantenCounter.new(Pai.parse_pais("139m19s19pESWNPF")).shanten)
-      assert_equal(1, ShantenCounter.new(Pai.parse_pais("139m19s19pESWNFF")).shanten)
-      assert_equal(1, ShantenCounter.new(Pai.parse_pais("114477m1144777s")).shanten)
-      assert_equal(1, ShantenCounter.new(Pai.parse_pais("114477m11447777s")).shanten)
-      
-      assert_equal(2, ShantenCounter.new(Pai.parse_pais("111222333mNNNFF")).combinations.size)
-      
-    end
+    include(Mjai)
     
     def test_tenpai()
       
@@ -63,21 +48,6 @@ class TC_Mahjong < Test::Unit::TestCase
           TenpaiInfo.new(Pai.parse_pais("19m19s19pESWNPFC")).waited_pais.join(" "))
       assert_equal("C",
           TenpaiInfo.new(Pai.parse_pais("19m19s19pESWNPPF")).waited_pais.join(" "))
-    end
-    
-    def test_tenhou_mjlog_loader()
-      assert_equal([:chi, 3, "8m", "6m 7m"], parse_furo(17463))
-      assert_equal([:pon, 1, "9p", "9p 9p"], parse_furo(26633))
-      assert_equal([:pon, 2, "W", "W W"], parse_furo(45674))
-      assert_equal([:daiminkan, 3, "C", "C C C"], parse_furo(33795))
-    end
-    
-    def parse_furo(fid)
-      parser = TenhouMjlogLoader::FuroParser.new(fid)
-      return [
-        parser.type, parser.target_dir,
-        parser.taken.to_s(), parser.consumed.join(" "),
-      ]
     end
     
 end

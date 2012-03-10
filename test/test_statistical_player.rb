@@ -1,8 +1,13 @@
+$LOAD_PATH.unshift(File.dirname(__FILE__) + "/../lib")
+
 require "test/unit"
-require "./statistical_player"
+
+require "mjai/statistical_player"
 
 
 class TC_StatisticalPlayer < Test::Unit::TestCase
+    
+    include(Mjai)
     
     def test_num_mentsus()
       
