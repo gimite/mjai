@@ -44,13 +44,15 @@ module Mjai
         end
         
         def initialize(fields)
-          for k, v in fields
-            if !@@field_specs.any?(){ |n, t| n == k }
-              raise(ArgumentError, "unknown field: %p" % k)
+          for name, value in fields
+            if !@@field_specs.any?(){ |n, t| n == name }
+              raise(ArgumentError, "unknown field: %p" % name)
             end
           end
           @fields = fields
         end
+        
+        attr_reader(:fields)
         
         def to_json()
           hash = {}
@@ -72,6 +74,33 @@ module Mjai
             hash[name.to_s()] = plain
           end
           return JSON.dump(hash)
+        end
+        
+        alias to_s to_json
+        
+        def merge(hash)
+          fields = @fields.dup()
+          for name, value in hash
+            if !@@field_specs.any?(){ |n, t| n == name }
+              raise(ArgumentError, "unknown field: %p" % k)
+            end
+            if value == nil
+              fields.delete(name)
+            else
+              fields[name] = value
+            end
+          end
+          return self.class.new(fields)
+        end
+        
+        def ==(other)
+          return self.class == other.class && @fields == other.fields
+        end
+        
+        alias eql? ==
+        
+        def hash
+          return @fields.hash
         end
         
     end

@@ -21,6 +21,20 @@ module Mjai
         
         def initialize()
           super((0...4).map(){ PuppetPlayer.new() })
+          @actions = nil
+        end
+        
+        def each_action(&block)
+          if block
+            on_action(&block)
+            play()
+          else
+            return enum_for(:each_action)
+          end
+        end
+        
+        def actions
+          return @actions ||= self.each_action.to_a()
         end
         
         def expect_response_from?(player)

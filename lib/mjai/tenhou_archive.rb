@@ -3,7 +3,7 @@ require "uri"
 require "nokogiri"
 require "with_progress"
 
-require "mjai/game"
+require "mjai/archive"
 require "mjai/pai"
 require "mjai/action"
 require "mjai/puppet_player"

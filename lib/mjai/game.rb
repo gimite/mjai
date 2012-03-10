@@ -97,13 +97,13 @@ module Mjai
           player = @players[player_id]
           case action.type
             when :start_game
-              return Action.new({:type => :start_game, :id => player_id, :names => action.names})
+              return action.merge({:id => player_id})
             when :haipai
               pais = action.actor == player ? action.pais : [Pai::UNKNOWN] * action.pais.size
-              return Action.new({:type => :haipai, :actor => action.actor, :pais => pais})
+              return action.merge({:pais => pais})
             when :tsumo
               pai = action.actor == player ? action.pai : Pai::UNKNOWN
-              return Action.new({:type => :tsumo, :actor => action.actor, :pai => pai})
+              return action.merge({:pai => pai})
             else
               return action
           end
