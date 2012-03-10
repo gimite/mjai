@@ -19,7 +19,7 @@ INTERESTING_CRITERIA = [
 
 @opts = OptionParser.getopts("v", "start:", "n:", "o:", "min_gap:")
 
-estimator = DangerEstimator.new()
+estimator = Mjai::DangerEstimator.new()
 estimator.verbose = @opts["v"]
 estimator.min_gap = @opts["min_gap"].to_f() / 100.0
 
