@@ -94,7 +94,8 @@ module Mjai
                   p [:score, self.tehais[idx], scores[idx]]
                 end
                 
-                max_pai_index = scores.keys.max_by(){ |i| scores[i] }
+                max_score = scores.values.max
+                max_pai_index = scores.keys.select(){ |i| scores[i] == max_score }.sample
                 
                 p [:dahai, self.tehais[max_pai_index]]
                 #if self.id == 0

@@ -7,6 +7,13 @@ module Mjai
     
     class ActiveGame < Game
         
+        def initialize(players)
+          super(players)
+          @game_type = :one_kyoku
+        end
+        
+        attr_accessor(:game_type)
+        
         def play()
           do_action(Action.new({:type => :start_game}))
           @next_oya = @players[0]

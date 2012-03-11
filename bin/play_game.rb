@@ -8,7 +8,7 @@ require "mjai/statistical_player"
 
 opts = OptionParser.getopts("")
 game = Mjai::ActiveGame.new((0...4).map(){ Mjai::StatisticalPlayer.new() })
-game.game_type = :tonnan
+game.game_type = :one_kyoku
 game.on_action() do |action|
   game.dump_action(action)
 end

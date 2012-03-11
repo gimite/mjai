@@ -8,7 +8,6 @@ module Mjai
     class Game
         
         def initialize(players)
-          @game_type = :one_kyoku
           @players = players
           for player in @players
             player.game = self
@@ -20,7 +19,6 @@ module Mjai
         end
         
         attr_reader(:players)
-        attr_accessor(:game_type)
         attr_reader(:all_pais)
         attr_reader(:bakaze)
         attr_reader(:oya)
