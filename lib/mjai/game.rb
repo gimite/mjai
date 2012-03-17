@@ -16,6 +16,7 @@ module Mjai
           @oya = nil
           @dora_markers = nil
           @previous_action = nil
+          @num_pipais = nil
         end
         
         attr_reader(:players)
@@ -161,19 +162,20 @@ module Mjai
         
         def dump_action(action)
           puts(action.to_json())
-          dump()
+          print(render_board())
         end
         
-        def dump()
+        def render_board()
+          result = ""
           if @bakaze && @honba && @oya
-            print("%s-%d kyoku %d honba  " % [@bakaze, @oya.id + 1, @honba])
+            result << ("%s-%d kyoku %d honba  " % [@bakaze, @oya.id + 1, @honba])
           end
-          print("pipai: %d  " % @pipais.size) if @pipais
-          print("dora_marker: %s  " % @dora_markers.join(" ")) if @dora_markers
-          puts()
+          result << ("pipai: %d  " % self.num_pipais) if self.num_pipais
+          result << ("dora_marker: %s  " % @dora_markers.join(" ")) if @dora_markers
+          result << "\n"
           @players.each_with_index() do |player, i|
             if player.tehais
-              puts("%s%s%d%s tehai: %s %s" %
+              result << ("%s%s%d%s tehai: %s %s\n" %
                    [player == @actor ? "*" : " ",
                     player == @oya ? "{" : "[",
                     i,
@@ -187,11 +189,11 @@ module Mjai
               else
                 ho_str = Pai.dump_pais(player.ho)
               end
-              puts("     ho:    %s" % ho_str)
+              result << ("     ho:    %s\n" % ho_str)
             end
           end
-          puts("-" * 80)
-          #gets()
+          result << ("-" * 80) << "\n"
+          return result
         end
         
     end
