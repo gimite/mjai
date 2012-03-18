@@ -1,4 +1,5 @@
 require "mjai/pai"
+require "mjai/mentsu"
 
 
 module Mjai
@@ -83,6 +84,41 @@ module Mjai
         end
         
         attr_reader(:pais, :shanten, :combinations)
+        
+        DetailedCombination = Struct.new(:janto, :mentsus)
+        
+        def detailed_combinations
+          result = []
+          for mentsus in @combinations.map(){ |ms| ms.map(){ |m| convert_mentsu(m) } }
+            for janto_index in [nil] + (0...mentsus.size).to_a()
+              t_mentsus = mentsus.dup()
+              janto = nil
+              if janto_index
+                next if ![:toitsu, :kotsu].include?(mentsus[janto_index].type)
+                janto = t_mentsus.delete_at(janto_index)
+              end
+              current_shanten =
+                  -1 +
+                  (janto_index ? 0 : 1) +
+                  t_mentsus.map(){ |m| 3 - m.pais.size }.sort()[0, 4].inject(0, :+)
+              next if current_shanten != @shanten
+              result.push(DetailedCombination.new(janto, t_mentsus))
+            end
+          end
+          return result
+        end
+        
+        def convert_mentsu(mentsu)
+          (type, pais) = mentsu
+          if type == :ryanpen
+            if [[1, 2], [8, 9]].include?(pais.map(){ |pai| pai.number })
+              type = :penta
+            else
+              type = :ryanmen
+            end
+          end
+          return Mentsu.new({:type => type, :pais => pais})
+        end
         
         def count_chitoi(pai_set)
           num_toitsus = pai_set.select(){ |pai, n| n >= 2 }.size

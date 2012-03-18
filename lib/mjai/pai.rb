@@ -10,7 +10,7 @@ module Mjai
           type = nil
           pais = []
           red = false
-          str.split(//).reverse_each() do |ch|
+          str.gsub(/\s+/, "").split(//).reverse_each() do |ch|
             next if ch =~ /^\s$/
             if ch =~ /^[mps]$/
               type = ch

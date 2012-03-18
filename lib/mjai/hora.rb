@@ -30,6 +30,51 @@ module Mjai
         CHURENPOTON_NUMBERS = [1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9]
         YAKUMAN_FAN = 100
         
+        class PointsDatum
+            
+            def initialize(fu, fan, oya, hora_type)
+              @fu = fu
+              @fan = fan
+              if @fan >= YAKUMAN_FAN
+                @base_points = 8000 * (@fan / YAKUMAN_FAN)
+              elsif @fan >= 13
+                @base_points = 8000
+              elsif @fan >= 11
+                @base_points = 6000
+              elsif @fan >= 8
+                @base_points = 4000
+              elsif @fan >= 6
+                @base_points = 3000
+              elsif @fan >= 5 || (@fan >= 4 && @fu >= 40) || (@fan >= 3 && @fu >= 70)
+                @base_points = 2000
+              else
+                @base_points = @fu * (2 ** (@fan + 2))
+              end
+              
+              if hora_type == :ron
+                @oya_payment = @ko_payment = @points =
+                    ceil_points(@base_points * (oya ? 6 : 4))
+              else
+                if oya
+                  @ko_payment = ceil_points(@base_points * 2)
+                  @oya_payment = 0
+                  @points = @ko_payment * 3
+                else
+                  @oya_payment = ceil_points(@base_points * 2)
+                  @ko_payment = ceil_points(@base_points)
+                  @points = @oya_payment + @ko_payment * 2
+                end
+              end
+            end
+            
+            attr_reader(:yaku, :fu, :points, :oya_payment, :ko_payment)
+            
+            def ceil_points(points)
+              return (points / 100.0).ceil * 100
+            end
+            
+        end
+        
         class Candidate
             
             def initialize(hora, combination, taken_index)
@@ -103,36 +148,10 @@ module Mjai
               @fu = get_fu()
               #p [:fu, @fu]
               
-              if @fan >= YAKUMAN_FAN
-                @base_points = 8000 * (@fan / YAKUMAN_FAN)
-              elsif @fan >= 13
-                @base_points = 8000
-              elsif @fan >= 11
-                @base_points = 6000
-              elsif @fan >= 8
-                @base_points = 4000
-              elsif @fan >= 6
-                @base_points = 3000
-              elsif @fan >= 5 || (@fan >= 4 && @fu >= 40) || (@fan >= 3 && @fu >= 70)
-                @base_points = 2000
-              else
-                @base_points = @fu * (2 ** (@fan + 2))
-              end
-              
-              if @hora.hora_type == :ron
-                @oya_payment = @ko_payment = @points =
-                    ceil_points(@base_points * (@hora.oya ? 6 : 4))
-              else
-                if @hora.oya
-                  @ko_payment = ceil_points(@base_points * 2)
-                  @oya_payment = 0
-                  @points = @ko_payment * 3
-                else
-                  @oya_payment = ceil_points(@base_points * 2)
-                  @ko_payment = ceil_points(@base_points)
-                  @points = @oya_payment + @ko_payment * 2
-                end
-              end
+              datum = PointsDatum.new(@fu, @fan, @hora.oya, @hora.hora_type)
+              @points = datum.points
+              @oya_payment = datum.oya_payment
+              @ko_payment = datum.ko_payment
               #p [:points, @points, @oya_payment, @ko_payment]
               
             end
@@ -141,10 +160,6 @@ module Mjai
             
             def valid?
               return !@yakus.select(){ |n, f| ![:dora, :uradora, :akadora].include?(n) }.empty?
-            end
-            
-            def ceil_points(points)
-              return (points / 100.0).ceil * 100
             end
             
             # http://ja.wikipedia.org/wiki/%E9%BA%BB%E9%9B%80%E3%81%AE%E5%BD%B9%E4%B8%80%E8%A6%A7
