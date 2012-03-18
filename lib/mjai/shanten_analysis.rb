@@ -24,6 +24,8 @@ module Mjai
           :single => 1,
         }
         
+        ALL_TYPES = [:normal, :chitoitsu, :kokushimuso]
+        
         def self.benchmark()
           all_pais = (["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n) } }.flatten() +
               (1..7).map(){ |n| Pai.new("t", n) }) * 4
@@ -47,7 +49,7 @@ module Mjai
           p Time.now.to_f - start_time
         end
 
-        def initialize(pais, max_shanten = nil, types = [:normal, :chitoitsu, :kokushimuso],
+        def initialize(pais, max_shanten = nil, types = ALL_TYPES,
             num_used_pais = pais.size, need_all_combinations = true)
           
           @pais = pais

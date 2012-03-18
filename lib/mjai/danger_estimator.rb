@@ -455,8 +455,8 @@ module Mjai
             waited = nil
             prereach_sutehais = nil
             skip = false
-            archive = Archive.new(input_path)
-            archive.play() do |action|
+            archive = Archive.load(input_path)
+            archive.each_action() do |action|
               archive.dump_action(action) if self.verbose
               case action.type
                 
