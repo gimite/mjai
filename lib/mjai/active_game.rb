@@ -171,10 +171,6 @@ module Mjai
           end
         end
         
-        def num_pipais
-          return @pipais.size
-        end
-        
         def expect_response_from?(player)
           return true
         end
