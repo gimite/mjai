@@ -64,7 +64,6 @@ module Mjai
                       freqs_map[normalized_criterion][result] += 1
                     end
                   end
-                  #break  # kari
               end
             end
           end
@@ -79,15 +78,36 @@ module Mjai
         end
         
         def dump_metrics_map(metrics_map)
-          puts("\#turns\tshanten\thora_p\tquick_p\tsamples")
-          for criterion, metrics in metrics_map.sort_by(){ |c, m| [c.shanten, c.num_remain_turns] }
-            puts("%d\t%d\t%.3f\t%.3f\t%d" % [
+          puts("\#turns\tshanten\thora_p\tsamples")
+          for criterion, metrics in metrics_map.sort_by(){ |c, m| [c.num_remain_turns, c.shanten] }
+          #for criterion, metrics in metrics_map.sort_by(){ |c, m| [c.shanten, c.num_remain_turns] }
+            puts("%d\t%d\t%.3f\t%p" % [
                 criterion.num_remain_turns,
                 criterion.shanten,
                 metrics.hora_prob,
-                metrics.quick_hora_prob,
                 metrics.num_samples,
             ])
+          end
+        end
+        
+        def adjust(metrics_map)
+          for shanten in 0..6
+            adjust_for_sequence(metrics_map, 17.downto(0).map(){ |n| Criterion.new(n, shanten) })
+          end
+          for num_remain_turns in 0..17
+            adjust_for_sequence(metrics_map, (0..6).map(){ |s| Criterion.new(num_remain_turns, s) })
+          end
+        end
+        
+        def adjust_for_sequence(metrics_map, criteria)
+          prev_prob = 1.0
+          for criterion in criteria
+            metrics = metrics_map[criterion]
+            if !metrics || metrics.hora_prob > prev_prob
+              #p [criterion, metrics && metrics.hora_prob, prev_prob]
+              metrics_map[criterion] = Metrics.new(prev_prob, nil, nil)
+            end
+            prev_prob = metrics_map[criterion].hora_prob
           end
         end
         
