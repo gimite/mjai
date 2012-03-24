@@ -21,10 +21,15 @@ class TC_StatisticalPlayer < Test::Unit::TestCase
     end
     
     def test_dahai_decision()
-      decision = get_decision(Pai.parse_pais("123789m134788pSS"))
+      #decision = get_decision(Pai.parse_pais("123m 789m 134m 788p SS"))
       #decision = get_decision(Pai.parse_pais("23789m23789p23sNN"))
-      #34 788 SS -> 34_ 78_ SS, 34_ 888 SS, 34_ 88 SSS
-      #34 88 SS -> 34_ 888 SS, 34_ 88 SSS
+      context = Context.new({
+          :oya => true,
+          :bakaze => Pai.new("E"),
+          :jikaze => Pai.new("E"),
+          :doras => Pai.parse_pais("1p"),
+      })
+      decision = get_decision(Pai.parse_pais("23m 67m 13p 89p 2s EE WW C"), {:context => context})
     end
     
     def get_decision(tehais, params = {})
@@ -48,24 +53,5 @@ class TC_StatisticalPlayer < Test::Unit::TestCase
       end
       return pai_set
     end
-    
-=begin
-    def test_num_mentsus()
-      
-      player = StatisticalPlayer.new()
-      assert_equal([1, 4], player.num_mentsus(Pai.parse_pais("123789m111789sEE")))
-      assert_equal([0, 4], player.num_mentsus(Pai.parse_pais("123789m111789sES")))
-      assert_equal([0, 3], player.num_mentsus(Pai.parse_pais("12789m111789sESF")))
-      assert_equal([0, 4], player.num_mentsus(Pai.parse_pais("112233m111789sES")))
-      assert_equal([0, 4], player.num_mentsus(Pai.parse_pais("122334m111789sES")))
-      assert_equal([1, 4], player.num_mentsus(Pai.parse_pais("111444777m111sEE")))
-      assert_equal([1, 3], player.num_mentsus(Pai.parse_pais("11123777m111sEES")))
-      assert_equal([1, 2], player.num_mentsus(Pai.parse_pais("123789m11sESWPFC")))
-      assert_equal([1, 4], player.num_mentsus(Pai.parse_pais("123456789m111sCC")))
-      assert_equal([1, 4], player.num_mentsus(Pai.parse_pais("11112345678999m")))
-      assert_equal([0, 4], player.num_mentsus(Pai.parse_pais("1123789m111789sE")))
-      
-    end
-=end
     
 end

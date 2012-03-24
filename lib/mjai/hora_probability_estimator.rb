@@ -47,16 +47,19 @@ module Mjai
             
             attr_reader(:progress_prob, :hora_prob)
             
-            def get_hora_prob()
+            def get_hora_prob(num_remain_turns = @scene.num_remain_turns)
               return 0.0 if @progress_prob == 0.0
+              return 0.0 if num_remain_turns < 0
               shanten = @shanten_analysis.shanten
               hora_prob_on_prog =
-                  @scene.estimator.get_hora_prob(@scene.num_remain_turns - 2, shanten - 1)
+                  @scene.estimator.get_hora_prob(num_remain_turns - 2, shanten - 1)
               hora_prob_on_no_prog =
-                  @scene.estimator.get_hora_prob(@scene.num_remain_turns - 2, shanten)
-              #p [:hora_prob, @progress_prob, hora_prob_on_prog, hora_prob_on_no_prog]
-              return @progress_prob * hora_prob_on_prog +
+                  get_hora_prob(num_remain_turns - 2)
+              hora_prob = @progress_prob * hora_prob_on_prog +
                   (1.0 - @progress_prob) * hora_prob_on_no_prog
+              #p [:hora_prob, num_remain_turns, shanten, @progress_prob,
+              #    hora_prob, hora_prob_on_prog, hora_prob_on_no_prog]
+              return hora_prob
             end
             
             # Probability to decrease >= 1 shanten in 2 turns.
@@ -264,7 +267,13 @@ module Mjai
         end
         
         def get_hora_prob(num_remain_turns, shanten)
-          return @metrics_map[Criterion.new(num_remain_turns, shanten)].hora_prob
+          if shanten <= -1
+            return 1.0
+          elsif num_remain_turns < 0
+            return 0.0
+          else
+            return @metrics_map[Criterion.new(num_remain_turns, shanten)].hora_prob
+          end
         end
         
         def dump_metrics_map()
