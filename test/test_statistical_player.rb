@@ -40,6 +40,7 @@ class TC_StatisticalPlayer < Test::Unit::TestCase
           :num_remain_turns => 16,
           :current_shanten_analysis => ShantenAnalysis.new(tehais, nil, [:normal]),
           :sutehai_cands => tehais,
+          :score_type => :expected_points,
       }
       decision = StatisticalPlayer::DahaiDecision.new(default_params.merge(params))
       p [:best_dahai, decision.best_dahai_indices.map(){ |i| tehais[i] }]

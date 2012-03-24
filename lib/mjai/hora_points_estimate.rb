@@ -17,6 +17,8 @@ module Mjai
         # TODO Add ippatsu, uradora
         SUPPORTED_YAKUS = [:reach, :tanyaochu, :pinfu, :fanpai, :dora, :akadora]
         
+        DORA_YAKUS = [:dora, :akadora, :uradora]
+        
         class ProbablisticFan
             
             def self.prob_average(pfans)
@@ -51,6 +53,10 @@ module Mjai
               return apply(:*, other)
             end
             
+            def expected
+              @probs.map(){ |f, pr| f * pr }.inject(0.0, :+)
+            end
+            
             def apply(operator, other)
               new_probs = Hash.new(0.0)
               for f1, p1 in @probs
@@ -72,6 +78,7 @@ module Mjai
               @mentsu_candidates = @used_combination.mentsus.map() do |mentsu|
                 HoraPointsEstimate.complete_candidates(mentsu)
               end
+              @menzen = @used_combination.mentsus.all?(){ |m| m.visibility == :an }
             end
             
             attr_reader(:used_combination)
@@ -98,8 +105,7 @@ module Mjai
             end
             
             def reach_pfan
-              # TODO Change if not menzen.
-              return ProbablisticFan.new(1)
+              return ProbablisticFan.new(@menzen ? 1 : 0)
             end
             
             def tanyaochu_pfan
@@ -111,18 +117,22 @@ module Mjai
             end
             
             def pinfu_pfan
-              prob = 1.0
-              prob *= get_prob(@janto_candidates) do |m|
-                @hp_est.context.fanpai_fan(m.pais[0]) == 0
-              end
-              for cands in @mentsu_candidates
-                prob *= get_prob(cands){ |m| m.type == :shuntsu }
-              end
-              if prob > 0.0
-                incompletes = @used_combination.mentsus.select(){ |m| m.pais.size < 3 }
-                ryanmen_prob =
-                    incompletes.map(){ |m| get_ryanmen_prob(m) }.inject(0.0, :+) / incompletes.size
-                prob *= ryanmen_prob
+              if @menzen
+                prob = 1.0
+                prob *= get_prob(@janto_candidates) do |m|
+                  @hp_est.context.fanpai_fan(m.pais[0]) == 0
+                end
+                for cands in @mentsu_candidates
+                  prob *= get_prob(cands){ |m| m.type == :shuntsu }
+                end
+                if prob > 0.0
+                  incompletes = @used_combination.mentsus.select(){ |m| m.pais.size < 3 }
+                  ryanmen_prob =
+                      incompletes.map(){ |m| get_ryanmen_prob(m) }.inject(0.0, :+) / incompletes.size
+                  prob *= ryanmen_prob
+                end
+              else
+                prob = 0.0
               end
               return ProbablisticFan.new({0 => 1.0 - prob, 1 => prob})
             end
@@ -217,14 +227,22 @@ module Mjai
             
         end
         
-        def initialize(shanten_analysis, context)
-          @shanten_analysis = shanten_analysis
-          @context = context
-          @hora_combinations = self.get_hora_combinations
-          @yaku_pfans = get_yaku_pfans()
+        def initialize(params)
+          @shanten_analysis = params[:shanten_analysis]
+          @furos = params[:furos]
+          @context = params[:context]
+          
+          @expanded_combinations = get_expanded_combinations()
+          @used_combinations = get_used_combinations(@expanded_combinations)
+          @hora_combinations = get_hora_combinations(@used_combinations)
+          @yaku_pfans = get_yaku_pfans(@hora_combinations)
+          @average_points = get_average_points(@yaku_pfans)
         end
         
-        attr_reader(:shanten_analysis, :hora_combinations, :context)
+        attr_reader(
+            :shanten_analysis, :furos, :context,
+            :expanded_combinations, :used_combinations, :hora_combinations,
+            :yaku_pfans, :average_points)
         
         # key: [menzen, tsumo, pinfu]
         FU_MAP = {
@@ -238,58 +256,25 @@ module Mjai
             [true, true, true] => 20,
         }
         
-        def average_points
-          pfan = @yaku_pfans.values.inject(ProbablisticFan.new(0), :+)
-          pinfu_prob = @yaku_pfans[:pinfu].probs[1]
-          is_menzen = true  # TODO Change if not menzen.
-          result = 0.0
-          for is_tsumo in [false, true]
-            for is_pinfu in [false, true]
-              base_prob =
-                  (is_tsumo ? TSUMO_HORA_PROB : 1.0 - TSUMO_HORA_PROB) *
-                  (is_pinfu ? pinfu_prob : 1.0 - pinfu_prob)
-              next if base_prob == 0.0
-              fu = FU_MAP[[is_menzen, is_tsumo, is_pinfu]]
-              for fan, fan_prob in pfan.probs
-                fan += 1 if is_menzen && is_tsumo
-                datum = Hora::PointsDatum.new(fu, fan, @context.oya, is_tsumo ? :tsumo : :ron)
-                #p [is_tsumo, is_pinfu, base_prob, fan, fan_prob, fu, datum.points]
-                result += datum.points * fan_prob * base_prob
-              end
-            end
-          end
-          return result
-        end
-        
         def yaku_debug_str
           [:reach, :tanyaochu, :pinfu, :fanpai, :dora, :akadora]
           short_names =
               [[:tanyaochu, "ty"], [:pinfu, "pf"], [:fanpai, "fp"], [:dora, "dr"], [:akadora, "ad"]]
           strs = short_names.map() do |yaku, short_name|
-            exp_fan = @yaku_pfans[yaku].probs.map(){ |f, pr| f * pr }.inject(0.0, :+)
+            exp_fan = @yaku_pfans[yaku].expected
             exp_fan < 0.001 ? nil : "%s=%.2f" % [short_name, exp_fan]
           end
           return strs.select(){ |s| s }.join(" ")
         end
         
-        def get_yaku_pfans()
-          result = {}
-          for yaku in SUPPORTED_YAKUS
-            result[yaku] = yaku_pfan(yaku)
-          end
-          return result
-        end
-        
-        def yaku_pfan(yaku)
-          pfans = @hora_combinations.map(){ |hc| hc.yaku_pfan(yaku) }
-          return ProbablisticFan.prob_average(pfans)
-        end
-        
-        def each_combination(&block)
+        def get_expanded_combinations()
+          furo_mentsus = @furos.map(){ |f| f.to_mentsu() }
+          result = []
           for combination in @shanten_analysis.detailed_combinations
             #p combination
             if combination.janto
-              yield(combination)
+              result.push(ShantenAnalysis::DetailedCombination.new(
+                  combination.janto, combination.mentsus + furo_mentsus))
             else
               num_groups = combination.mentsus.select(){ |m| m.pais.size >= 2 }.size
               combination.mentsus.each_with_index() do |mentsu, i|
@@ -303,16 +288,18 @@ module Mjai
                 if maybe_janto
                   remains = combination.mentsus.dup()
                   remains.delete_at(i)
-                  yield(ShantenAnalysis::DetailedCombination.new(mentsu, remains))
+                  result.push(ShantenAnalysis::DetailedCombination.new(
+                      mentsu, remains + furo_mentsus))
                 end
               end
             end
           end
+          return result
         end
         
-        def used_combinations
+        def get_used_combinations(expanded_combinations)
           result = Set.new()
-          each_combination() do |combination|
+          for combination in expanded_combinations
             completes = combination.mentsus.select(){ |m| m.pais.size >= 3 }.sort()
             tatsus = combination.mentsus.select(){ |m| m.pais.size == 2 }.sort()
             singles = combination.mentsus.select(){ |m| m.pais.size == 1 }.sort()
@@ -338,8 +325,92 @@ module Mjai
           return result
         end
         
-        def get_hora_combinations()
-          self.used_combinations.map(){ |c| HoraCombination.new(c, self) }
+        def get_hora_combinations(used_combinations)
+          return used_combinations.map(){ |c| HoraCombination.new(c, self) }
+        end
+        
+        def get_yaku_pfans(hora_combinations)
+          result = {}
+          for yaku in SUPPORTED_YAKUS
+            result[yaku] = get_yaku_pfan(yaku, hora_combinations)
+          end
+          return result
+        end
+        
+        def get_yaku_pfan(yaku, hora_combinations)
+          pfans = hora_combinations.map(){ |hc| hc.yaku_pfan(yaku) }
+          return ProbablisticFan.prob_average(pfans)
+        end
+        
+        def get_average_points(yaku_pfans)
+          
+          normal_pfan = yaku_pfans.select(){ |yk, pf| !DORA_YAKUS.include?(yk) }.
+              map(){ |yk, pf| pf }.
+              inject(ProbablisticFan.new(0), :+)
+          dora_pfan = yaku_pfans.select(){ |yk, pf| DORA_YAKUS.include?(yk) }.
+              map(){ |yk, pf| pf }.
+              inject(ProbablisticFan.new(0), :+)
+          probs = Hash.new(0.0)
+          for nf, np in normal_pfan.probs
+            for df, fp in dora_pfan.probs
+              probs[nf == 0 ? 0 : nf + df] += np * fp
+            end
+          end
+          
+          pinfu_prob = yaku_pfans[:pinfu].probs[1]
+          is_menzen = @furos.empty?
+          result = 0.0
+          for is_tsumo in [false, true]
+            for is_pinfu in [false, true]
+              base_prob =
+                  (is_tsumo ? TSUMO_HORA_PROB : 1.0 - TSUMO_HORA_PROB) *
+                  (is_pinfu ? pinfu_prob : 1.0 - pinfu_prob)
+              next if base_prob == 0.0
+              fu = FU_MAP[[is_menzen, is_tsumo, is_pinfu]]
+              for fan, fan_prob in probs
+                fan += 1 if is_menzen && is_tsumo
+                if fan > 0
+                  datum = Hora::PointsDatum.new(fu, fan, @context.oya, is_tsumo ? :tsumo : :ron)
+                  #p [is_tsumo, is_pinfu, base_prob, fan, fan_prob, fu, datum.points]
+                  result += datum.points * fan_prob * base_prob
+                end
+              end
+            end
+          end
+          return result
+          
+        end
+        
+        def dump()
+          p [:shanten, self.shanten_analysis.shanten]
+          p :orig
+          for combi in self.shanten_analysis.combinations
+            pp combi
+          end
+          p :detailed
+          for combi in self.shanten_analysis.detailed_combinations
+            pp combi
+          end
+          p :expanded
+          for combi in self.expanded_combinations
+            pp combi
+          end
+          p [:used, self.used_combinations.size]
+          for combi in self.used_combinations
+            pp combi
+          end
+          p [:hora, self.hora_combinations.size]
+          for hcombi in self.hora_combinations
+            p [:current_janto, hcombi.used_combination.janto.pais.join(" ")]
+            for mentsu in hcombi.used_combination.mentsus
+              p [:current_mentsu, mentsu.pais.join(" ")]
+            end
+            pp hcombi
+          end
+          for yaku, pfan in self.yaku_pfans
+            p [yaku, pfan.probs.reject(){ |k, v| k == 0 }.sort()] if pfan.probs[0] < 0.999
+          end
+          p [:avg_pts, self.average_points]
         end
         
         def self.complete_candidates(mentsu)

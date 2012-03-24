@@ -40,7 +40,11 @@ module Mjai
                 cheapness = pai.type == "t" ? 5 : (5 - pai.number).abs
                 # TODO Reuse shanten_analysis
                 prob_info = scene.get_tehais(remains)
-                points_estimate = HoraPointsEstimate.new(shanten_analysis, context)
+                points_estimate = HoraPointsEstimate.new({
+                    :shanten_analysis => shanten_analysis,
+                    :furos => [],
+                    :context => context,
+                })
                 expected_points = points_estimate.average_points * prob_info.hora_prob
                 case score_type
                   when :expected_points

@@ -7,7 +7,7 @@ require "mjai/hora_points_estimate"
 
 include(Mjai)
 
-@context = Context({
+@context = Context.new({
     :oya => false,
     :bakaze => Pai.new("E"),
     :jikaze => Pai.new("S"),
@@ -16,9 +16,11 @@ include(Mjai)
 
 def dump(pais_str, verbose = false)
   p pais_str
-  hp_est = HoraPointsEstimate.new(
-      ShantenAnalysis.new(Pai.parse_pais(pais_str), nil, [:normal]),
-      @context)
+  hp_est = HoraPointsEstimate.new({
+      :shanten_analysis => ShantenAnalysis.new(Pai.parse_pais(pais_str), nil, [:normal]),
+      :furos => [],
+      :context => @context,
+  })
   if verbose
     p [:shanten, hp_est.shanten_analysis.shanten]
     p :orig
@@ -30,7 +32,7 @@ def dump(pais_str, verbose = false)
       pp combi
     end
     p :expanded
-    hp_est.each_combination() do |combi|
+    for combi in hp_est.expanded_combinations
       pp combi
     end
     p [:used, hp_est.used_combinations.size]
@@ -53,15 +55,6 @@ def dump(pais_str, verbose = false)
 end
 
 case ARGV.shift()
-  when "test"
-    dump("22m678m234p56sEFF")
-    dump("23m67m234p55sEFFF")
-    dump("67m234p55sEFFFPP")
-    dump("23m67m234678p55sE")
-    dump("23m67m234678p5s5srE")
-    dump("13m67m234678p55sE")
-    dump("123789m1236p5sNN")
-    dump("123789m45p5pr6pWNN")
   when "random"
     pais = (0...4).map() do |i|
       ["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n, n == 5 && i == 0) } } +
@@ -78,12 +71,3 @@ case ARGV.shift()
   else
     raise("hoge")
 end
-
-#hp_est = HoraPointsEstimate.new(
-#    ShantenAnalysis.new(Pai.parse_pais("23m67m34888p5589s"), nil, [:normal]))
-#hp_est = HoraPointsEstimate.new(
-#    ShantenAnalysis.new(Pai.parse_pais("22m67m234678p55sE"), nil, [:normal]))
-#pp HoraPointsEstimate.complete_candidates(
-#    Mentsu.new({:type => :ryanmen, :pais => Pai.parse_pais("23m")}))
-#pp HoraPointsEstimate.complete_candidates(
-#    Mentsu.new({:type => :penta, :pais => Pai.parse_pais("12m")}))

@@ -88,6 +88,7 @@ module Mjai
         DetailedCombination = Struct.new(:janto, :mentsus)
         
         def detailed_combinations
+          num_required_mentsus = @pais.size / 3
           result = []
           for mentsus in @combinations.map(){ |ms| ms.map(){ |m| convert_mentsu(m) } }
             for janto_index in [nil] + (0...mentsus.size).to_a()
@@ -100,7 +101,9 @@ module Mjai
               current_shanten =
                   -1 +
                   (janto_index ? 0 : 1) +
-                  t_mentsus.map(){ |m| 3 - m.pais.size }.sort()[0, 4].inject(0, :+)
+                  t_mentsus.map(){ |m| 3 - m.pais.size }.
+                      sort()[0, num_required_mentsus].
+                      inject(0, :+)
               next if current_shanten != @shanten
               result.push(DetailedCombination.new(janto, t_mentsus))
             end
@@ -117,7 +120,7 @@ module Mjai
               type = :ryanmen
             end
           end
-          return Mentsu.new({:type => type, :pais => pais})
+          return Mentsu.new({:type => type, :pais => pais, :visibility => :an})
         end
         
         def count_chitoi(pai_set)

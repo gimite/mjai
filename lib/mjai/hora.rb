@@ -33,6 +33,7 @@ module Mjai
         class PointsDatum
             
             def initialize(fu, fan, oya, hora_type)
+              
               @fu = fu
               @fan = fan
               if @fan >= YAKUMAN_FAN
@@ -65,6 +66,7 @@ module Mjai
                   @points = @oya_payment + @ko_payment * 2
                 end
               end
+              
             end
             
             attr_reader(:yaku, :fu, :points, :oya_payment, :ko_payment)
