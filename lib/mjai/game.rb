@@ -120,7 +120,8 @@ module Mjai
                   valid = !response
                 when :tsumo
                   if is_actor
-                    valid = response && [:dahai, :reach, :ankan, :kakan, :hora].include?(response.type)
+                    valid = response &&
+                        [:dahai, :reach, :ankan, :kakan, :hora].include?(response.type)
                   else
                     valid = !response
                   end

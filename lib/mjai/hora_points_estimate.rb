@@ -1,10 +1,9 @@
-$LOAD_PATH.unshift("./lib")  # kari
 require "set"
 require "pp"
 
 require "mjai/pai"
 require "mjai/shanten_analysis"
-require "mjai/situation"
+require "mjai/context"
 require "mjai/hora"
 
 
@@ -114,7 +113,7 @@ module Mjai
             def pinfu_pfan
               prob = 1.0
               prob *= get_prob(@janto_candidates) do |m|
-                @hp_est.situation.fanpai_fan(m.pais[0]) == 0
+                @hp_est.context.fanpai_fan(m.pais[0]) == 0
               end
               for cands in @mentsu_candidates
                 prob *= get_prob(cands){ |m| m.type == :shuntsu }
@@ -181,13 +180,13 @@ module Mjai
             
             def get_fanpai_prob(mentsu_cands, fan)
               return get_prob(mentsu_cands) do |m|
-                m.type == :kotsu && @hp_est.situation.fanpai_fan(m.pais[0]) == fan
+                m.type == :kotsu && @hp_est.context.fanpai_fan(m.pais[0]) == fan
               end
             end
             
             def get_dora_fan(mentsu)
               fans = mentsu.pais.map() do |pai|
-                @hp_est.situation.doras.count(pai.remove_red())
+                @hp_est.context.doras.count(pai.remove_red())
               end
               return fans.inject(0, :+)
             end
@@ -218,13 +217,14 @@ module Mjai
             
         end
         
-        def initialize(shanten_analysis, situation)
+        def initialize(shanten_analysis, context)
           @shanten_analysis = shanten_analysis
-          @situation = situation
+          @context = context
           @hora_combinations = self.get_hora_combinations
+          @yaku_pfans = get_yaku_pfans()
         end
         
-        attr_reader(:shanten_analysis, :hora_combinations, :situation)
+        attr_reader(:shanten_analysis, :hora_combinations, :context)
         
         # key: [menzen, tsumo, pinfu]
         FU_MAP = {
@@ -239,9 +239,8 @@ module Mjai
         }
         
         def average_points
-          yaku_pfans = self.yaku_pfans
-          pfan = yaku_pfans.values.inject(ProbablisticFan.new(0), :+)
-          pinfu_prob = yaku_pfans[:pinfu].probs[1]
+          pfan = @yaku_pfans.values.inject(ProbablisticFan.new(0), :+)
+          pinfu_prob = @yaku_pfans[:pinfu].probs[1]
           is_menzen = true  # TODO Change if not menzen.
           result = 0.0
           for is_tsumo in [false, true]
@@ -253,8 +252,8 @@ module Mjai
               fu = FU_MAP[[is_menzen, is_tsumo, is_pinfu]]
               for fan, fan_prob in pfan.probs
                 fan += 1 if is_menzen && is_tsumo
-                datum = Hora::PointsDatum.new(fu, fan, @situation.oya, is_tsumo ? :tsumo : :ron)
-                p [is_tsumo, is_pinfu, base_prob, fan, fan_prob, fu, datum.points]
+                datum = Hora::PointsDatum.new(fu, fan, @context.oya, is_tsumo ? :tsumo : :ron)
+                #p [is_tsumo, is_pinfu, base_prob, fan, fan_prob, fu, datum.points]
                 result += datum.points * fan_prob * base_prob
               end
             end
@@ -262,7 +261,18 @@ module Mjai
           return result
         end
         
-        def yaku_pfans
+        def yaku_debug_str
+          [:reach, :tanyaochu, :pinfu, :fanpai, :dora, :akadora]
+          short_names =
+              [[:tanyaochu, "ty"], [:pinfu, "pf"], [:fanpai, "fp"], [:dora, "dr"], [:akadora, "ad"]]
+          strs = short_names.map() do |yaku, short_name|
+            exp_fan = @yaku_pfans[yaku].probs.map(){ |f, pr| f * pr }.inject(0.0, :+)
+            exp_fan < 0.001 ? nil : "%s=%.2f" % [short_name, exp_fan]
+          end
+          return strs.select(){ |s| s }.join(" ")
+        end
+        
+        def get_yaku_pfans()
           result = {}
           for yaku in SUPPORTED_YAKUS
             result[yaku] = yaku_pfan(yaku)
@@ -380,87 +390,3 @@ module Mjai
     end
     
 end
-
-
-include(Mjai)
-
-@situation = Situation.new({
-    :oya => false,
-    :bakaze => Pai.new("E"),
-    :jikaze => Pai.new("S"),
-    :doras => Pai.parse_pais("2m"),
-})
-
-def dump(pais_str, verbose = false)
-  p pais_str
-  hp_est = HoraPointsEstimate.new(
-      ShantenAnalysis.new(Pai.parse_pais(pais_str), nil, [:normal]),
-      @situation)
-  if verbose
-    p [:shanten, hp_est.shanten_analysis.shanten]
-    p :orig
-    for combi in hp_est.shanten_analysis.combinations
-      pp combi
-    end
-    p :detailed
-    for combi in hp_est.shanten_analysis.detailed_combinations
-      pp combi
-    end
-    p :expanded
-    hp_est.each_combination() do |combi|
-      pp combi
-    end
-    p [:used, hp_est.used_combinations.size]
-    for combi in hp_est.used_combinations
-      pp combi
-    end
-    p [:hora, hp_est.hora_combinations.size]
-    for hcombi in hp_est.hora_combinations
-      p [:current_janto, hcombi.used_combination.janto.pais.join(" ")]
-      for mentsu in hcombi.used_combination.mentsus
-        p [:current_mentsu, mentsu.pais.join(" ")]
-      end
-      pp hcombi
-    end
-  end
-  for yaku, pfan in hp_est.yaku_pfans
-    p [yaku, pfan.probs.reject(){ |k, v| k == 0 }.sort()] if pfan.probs[0] < 0.999
-  end
-  p [:avg_pts, hp_est.average_points]
-end
-
-case ARGV.shift()
-  when "test"
-    dump("22m678m234p56sEFF")
-    dump("23m67m234p55sEFFF")
-    dump("67m234p55sEFFFPP")
-    dump("23m67m234678p55sE")
-    dump("23m67m234678p5s5srE")
-    dump("13m67m234678p55sE")
-    dump("123789m1236p5sNN")
-    dump("123789m45p5pr6pWNN")
-  when "random"
-    pais = (0...4).map() do |i|
-      ["m", "p", "s"].map(){ |t| (1..9).map(){ |n| Pai.new(t, n, n == 5 && i == 0) } } +
-          (1..7).map(){ |n| Pai.new("t", n) }
-    end
-    all_pais = pais.flatten().sort()
-    while true
-      pais = all_pais.sample(13).sort()
-      start_time = Time.now
-      dump(pais.join(" "))
-      p [:time, Time.now - start_time]
-      gets()
-    end
-  else
-    raise("hoge")
-end
-
-#hp_est = HoraPointsEstimate.new(
-#    ShantenAnalysis.new(Pai.parse_pais("23m67m34888p5589s"), nil, [:normal]))
-#hp_est = HoraPointsEstimate.new(
-#    ShantenAnalysis.new(Pai.parse_pais("22m67m234678p55sE"), nil, [:normal]))
-#pp HoraPointsEstimate.complete_candidates(
-#    Mentsu.new({:type => :ryanmen, :pais => Pai.parse_pais("23m")}))
-#pp HoraPointsEstimate.complete_candidates(
-#    Mentsu.new({:type => :penta, :pais => Pai.parse_pais("12m")}))

@@ -126,6 +126,23 @@ module Mjai
           return tenpai_info.waited_pais.any?(){ |pai| anpais.include?(pai) }
         end
         
+        def context
+          return Context.new({
+            :oya => self == self.game.oya,
+            :bakaze => self.game.bakaze,
+            :jikaze => self.jikaze,
+            :doras => self.game.doras,
+            :uradoras => [],  # TODO
+            :reach => self.reach?,
+            :double_reach => false,  # TODO
+            :ippatsu => false,  # TODO
+            :rinshan => false,  # TODO
+            :haitei => self.game.num_pipais == 0,
+            :first_turn => false,  # TODO
+            :chankan => false,  # TODO
+          })
+        end
+        
         def delete_tehai(pai)
           pai_index = @tehais.index(pai) || @tehais.index(Pai::UNKNOWN)
           raise("trying to delete %p which is not in tehais: %p" % [pai, @tehais]) if !pai_index

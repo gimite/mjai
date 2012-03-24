@@ -2,15 +2,67 @@ require "mjai/pai"
 require "mjai/player"
 require "mjai/shanten_analysis"
 require "mjai/danger_estimator"
+require "mjai/hora_probability_estimator"
+require "mjai/hora_points_estimate"
 
 
 module Mjai
 
     class StatisticalPlayer < Player
         
+        class DahaiDecision
+            
+            def initialize(params)
+              
+              visible_set = params[:visible_set]
+              context = params[:context]
+              hora_prob_estimator = params[:hora_prob_estimator]
+              num_remain_turns = params[:num_remain_turns]
+              current_shanten_analysis = params[:current_shanten_analysis]
+              sutehai_cands = params[:sutehai_cands]
+              tehais = current_shanten_analysis.pais
+              scene = hora_prob_estimator.get_scene({
+                  :visible_set => visible_set,
+                  :num_remain_turns => num_remain_turns,
+                  :current_shanten => current_shanten_analysis.shanten,
+              })
+              
+              scores = {}
+              for pai in sutehai_cands
+                #p [:pai, pai]
+                idx = tehais.index(pai)
+                remains = tehais.dup()
+                remains.delete_at(idx)
+                shanten_analysis = ShantenAnalysis.new(
+                    remains, current_shanten_analysis.shanten, [:normal])
+                cheapness = pai.type == "t" ? 5 : (5 - pai.number).abs
+                # TODO Reuse shanten_analysis
+                prob_info = scene.get_tehais(remains)
+                points_estimate = HoraPointsEstimate.new(shanten_analysis, context)
+                expected_points = points_estimate.average_points * prob_info.hora_prob
+                scores[idx] = [expected_points, prob_info.progress_prob, cheapness]
+                if prob_info.progress_prob > 0.0
+                  puts("%s: ept=%d ppr=%.3f hpr=%.3f apt=%d (%s)" % [
+                      pai, expected_points, prob_info.progress_prob, prob_info.hora_prob,
+                      points_estimate.average_points, points_estimate.yaku_debug_str,
+                  ])
+                end
+              end
+              
+              max_score = scores.values.max
+              @best_dahai_indices = scores.keys.select(){ |i| scores[i] == max_score }
+              @best_dahai_index = @best_dahai_indices.sample
+              
+            end
+            
+            attr_reader(:best_dahai_indices, :best_dahai_index)
+            
+        end
+        
         def initialize()
           super()
           @danger_tree = DangerEstimator::DecisionTree.new("data/danger.all.tree")
+          @hora_prob_estimator = HoraProbabilityEstimator.new("data/hora_prob.marshal")
         end
         
         def respond_to_action(action)
@@ -28,11 +80,16 @@ module Mjai
               
               when :tsumo, :chi, :pon, :reach
                 
-                current_shanten = ShantenAnalysis.new(self.tehais, nil, [:normal]).shanten
+                current_shanten_analysis = ShantenAnalysis.new(self.tehais, nil, [:normal])
+                current_shanten = current_shanten_analysis.shanten
                 if action.type == :tsumo
                   case current_shanten
                     when -1
-                      return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
+                      return create_action({
+                          :type => :hora,
+                          :target => action.actor,
+                          :pai => action.pai,
+                      })
                     when 0
                       if self.reach?
                         return create_action({:type => :dahai, :pai => action.pai})
@@ -81,30 +138,26 @@ module Mjai
                 end
                 visible_set = to_pai_set(visible)
                 
-                scores = {}
-                for pai in sutehai_cands
-                  #p [:pai, pai]
-                  idx = self.tehais.index(pai)
-                  remains = self.tehais.dup()
-                  remains.delete_at(idx)
-                  prog_prob = get_progress_prob(
-                      remains, visible_set, visible.size, current_shanten)
-                  cheapness = pai.type == "t" ? 5 : (5 - pai.number).abs
-                  scores[idx] = [prog_prob, cheapness]
-                  p [:score, self.tehais[idx], scores[idx]]
-                end
+                decision = DahaiDecision.new({
+                    :visible_set => visible_set,
+                    :context => self.context,
+                    :hora_prob_estimator => @hora_prob_estimator,
+                    :num_remain_turns => self.game.num_pipais / 4,
+                    :current_shanten_analysis => current_shanten_analysis,
+                    :sutehai_cands => sutehai_cands,
+                })
                 
-                max_score = scores.values.max
-                max_pai_index = scores.keys.select(){ |i| scores[i] == max_score }.sample
-                
-                p [:dahai, self.tehais[max_pai_index]]
+                p [:dahai, self.tehais[decision.best_dahai_index]]
                 #if self.id == 0
                 #if has_reacher
                 #  print("> ")
                 #  gets()
                 #end
                 
-                return create_action({:type => :dahai, :pai => self.tehais[max_pai_index]})
+                return create_action({
+                    :type => :dahai,
+                    :pai => self.tehais[decision.best_dahai_index],
+                })
                 
             end
             
@@ -123,136 +176,6 @@ module Mjai
           end
           
           return nil
-        end
-        
-        State = Struct.new(:visible_set, :num_invisible, :num_tsumos)
-        
-        # Probability to decrease >= 1 shanten in 2 turns.
-        def get_progress_prob(remains, visible_set, num_visible, current_shanten)
-          
-          state = State.new()
-          state.visible_set = visible_set
-          state.num_invisible = game.all_pais.size - num_visible
-          #state.num_tsumos = game.num_pipais / 4
-          
-          shanten = ShantenAnalysis.new(remains, current_shanten, [:normal])
-          if shanten.shanten > current_shanten
-            return 0.0
-          end
-          
-          #p [:remains, remains.join(" ")]
-          candidates = get_required_pais_candidates(shanten)
-          
-          single_cands = Set.new()
-          double_cands = Set.new()
-          for pais in candidates
-            case pais.size
-              when 1
-                single_cands.add(pais[0])
-              when 2
-                double_cands.add(pais)
-              else
-                raise("should not happen")
-            end
-          end
-          double_cands = double_cands.select(){ |pais| pais.all?(){ |pai| !single_cands.include?(pai) } }
-          #p [:single, single_cands.sort().join(" ")]
-          #p [:double, double_cands]
-          
-          # (p, *) or (*, p)
-          any_single_prob = single_cands.map(){ |pai| get_pai_prob(pai, state) }.inject(0.0, :+)
-          total_prob = 1.0 - (1.0 - any_single_prob) ** 2
-          
-          #p [:single_total, total_prob]
-          for pai1, pai2 in double_cands
-            prob1 = get_pai_prob(pai1, state)
-            #p [:prob, pai1, state]
-            prob2 = get_pai_prob(pai2, state)
-            #p [:prob, pai2, state]
-            if pai1 == pai2
-              # (p1, p1)
-              total_prob += prob1 * prob2
-            else
-              # (p1, p2), (p2, p1)
-              total_prob += prob1 * prob2 * 2
-            end
-          end
-          #p [:total_prob, total_prob]
-          return total_prob
-        end
-        
-        # Pais required to decrease 1 shanten.
-        # Can be multiple pais, but not all multi-pai cases are included.
-        # - included: 45m for 13m
-        # - not included: 2m6s for 23m5s
-        def get_required_pais_candidates(shanten)
-          result = Set.new()
-          for mentsus in shanten.combinations
-            for janto_index in [nil] + (0...mentsus.size).to_a()
-              t_mentsus = mentsus.dup()
-              if janto_index
-                next if ![:toitsu, :kotsu].include?(mentsus[janto_index][0])
-                t_mentsus.delete_at(janto_index)
-              end
-              current_shanten =
-                  -1 +
-                  (janto_index ? 0 : 1) +
-                  t_mentsus.map(){ |t, ps| 3 - ps.size }.sort()[0, 4].inject(0, :+)
-              #p [:current_shanten, janto_index, current_shanten, shanten.shanten]
-              next if current_shanten != shanten.shanten
-              num_groups = t_mentsus.select(){ |t, ps| ps.size >= 2 }.size
-              for type, pais in t_mentsus
-                rnums_cands = []
-                if !janto_index && pais.size == 1
-                  # 1 -> janto
-                  rnums_cands.push([0])
-                end
-                if !janto_index && pais.size == 2 && num_groups >= 5
-                  # 2 -> janto
-                  case type
-                    when :ryanpen
-                      rnums_cands.push([0], [1])
-                    when :kanta
-                      rnums_cands.push([0], [2])
-                  end
-                end
-                if pais.size == 2
-                  # 2 -> 3
-                  case type
-                    when :ryanpen
-                      rnums_cands.push([-1], [2])
-                    when :kanta
-                      rnums_cands.push([1], [-2, -1], [3, 4])
-                    when :toitsu
-                      rnums_cands.push([0], [-2, -1], [-1, 1], [1, 2])
-                    else
-                      raise("should not happen")
-                  end
-                end
-                if pais.size == 1 && num_groups < 4
-                  # 1 -> 2
-                  rnums_cands.push([-2], [-1], [0], [1], [2])
-                end
-                if pais.size == 1
-                  # 1 -> 3
-                  rnums_cands.push([-2, -1], [-1, 1], [1, 2], [0, 0])
-                end
-                for rnums in rnums_cands
-                  in_range = rnums.all?() do |rn|
-                    (rn == 0 || pais[0].type != "t") && (1..9).include?(pais[0].number + rn)
-                  end
-                  if in_range
-                    result.add(rnums.map(){ |rn| Pai.new(pais[0].type, pais[0].number + rn) })
-                  end
-                end
-              end
-            end
-          end
-          return result
-        end
-        
-        def get_pai_prob(pai, state)
-          return (4 - state.visible_set[pai]).to_f() / state.num_invisible
         end
         
         # This is too slow but left here as most precise baseline.

@@ -3,7 +3,8 @@ require "mjai/with_fields"
 
 module Mjai
     
-    class Situation
+    # Context of the game which affects hora yaku and points.
+    class Context
         
         extend(WithFields)
         
