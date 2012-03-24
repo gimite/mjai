@@ -20,6 +20,8 @@ module Mjai
               num_remain_turns = params[:num_remain_turns]
               current_shanten_analysis = params[:current_shanten_analysis]
               sutehai_cands = params[:sutehai_cands]
+              score_type = params[:score_type]
+              
               tehais = current_shanten_analysis.pais
               scene = hora_prob_estimator.get_scene({
                   :visible_set => visible_set,
@@ -40,7 +42,14 @@ module Mjai
                 prob_info = scene.get_tehais(remains)
                 points_estimate = HoraPointsEstimate.new(shanten_analysis, context)
                 expected_points = points_estimate.average_points * prob_info.hora_prob
-                scores[idx] = [expected_points, prob_info.progress_prob, cheapness]
+                case score_type
+                  when :expected_points
+                    scores[idx] = [expected_points, prob_info.progress_prob, cheapness]
+                  when :progress_prob
+                    scores[idx] = [prob_info.progress_prob, cheapness]
+                  else
+                    raise("unknown score_type")
+                end
                 if prob_info.progress_prob > 0.0
                   puts("%s: ept=%d ppr=%.3f hpr=%.3f apt=%d (%s)" % [
                       pai, expected_points, prob_info.progress_prob, prob_info.hora_prob,
@@ -59,8 +68,9 @@ module Mjai
             
         end
         
-        def initialize()
+        def initialize(params)
           super()
+          @score_type = params[:score_type]
           @danger_tree = DangerEstimator::DecisionTree.new("data/danger.all.tree")
           @hora_prob_estimator = HoraProbabilityEstimator.new("data/hora_prob.marshal")
         end
@@ -82,21 +92,16 @@ module Mjai
                 
                 current_shanten_analysis = ShantenAnalysis.new(self.tehais, nil, [:normal])
                 current_shanten = current_shanten_analysis.shanten
-                if action.type == :tsumo
-                  case current_shanten
-                    when -1
-                      return create_action({
-                          :type => :hora,
-                          :target => action.actor,
-                          :pai => action.pai,
-                      })
-                    when 0
-                      if self.reach?
-                        return create_action({:type => :dahai, :pai => action.pai})
-                      elsif self.game.num_pipais >= 4
-                        return create_action({:type => :reach})
-                      end
-                  end
+                if can_hora?(current_shanten_analysis)
+                  return create_action({
+                      :type => :hora,
+                      :target => action.actor,
+                      :pai => action.pai,
+                  })
+                elsif can_reach?(current_shanten_analysis)
+                  return create_action({:type => :reach})
+                elsif self.reach?
+                  return create_action({:type => :dahai, :pai => action.pai})
                 end
                 p [:shanten, current_shanten]
                 
@@ -145,6 +150,7 @@ module Mjai
                     :num_remain_turns => self.game.num_pipais / 4,
                     :current_shanten_analysis => current_shanten_analysis,
                     :sutehai_cands => sutehai_cands,
+                    :score_type => @score_type,
                 })
                 
                 p [:dahai, self.tehais[decision.best_dahai_index]]
@@ -165,9 +171,12 @@ module Mjai
             
             case action.type
               when :dahai
-                if ShantenAnalysis.new(self.tehais + [action.pai], -1).shanten == -1 &&
-                    !self.furiten?
-                  return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
+                if self.can_hora?
+                  return create_action({
+                      :type => :hora,
+                      :target => action.actor,
+                      :pai => action.pai,
+                  })
                 end
               when :reach_accepted
                 @prereach_sutehais_map[action.actor] = action.actor.sutehais.dup()

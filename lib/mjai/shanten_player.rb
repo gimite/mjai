@@ -16,14 +16,22 @@ module Mjai
             case action.type
               
               when :tsumo, :chi, :pon, :reach
-                shanten = ShantenAnalysis.new(self.tehais).shanten
+                
+                current_shanten_analysis = ShantenAnalysis.new(self.tehais, nil, [:normal])
+                current_shanten = current_shanten_analysis.shanten
+                if can_hora?(current_shanten_analysis)
+                  return create_action({
+                      :type => :hora,
+                      :target => action.actor,
+                      :pai => action.pai,
+                  })
+                elsif can_reach?(current_shanten_analysis)
+                  return create_action({:type => :reach})
+                elsif self.reach?
+                  return create_action({:type => :dahai, :pai => action.pai})
+                end
+                
                 if action.type == :tsumo
-                  case shanten
-                    when -1
-                      return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
-                    when 0
-                      return create_action({:type => :reach}) if !self.reach?
-                  end
                   for pai in self.tehais
                     if self.tehais.select(){ |tp| tp == pai }.size >= 4
                       #@game.last = true
@@ -37,17 +45,18 @@ module Mjai
                         {:type => :kakan, :pai => action.pai, :consumed => [action.pai] * 3})
                   end
                 end
-                sutehai = self.tehais[-1]
-                (self.tehais.size - 1).downto(0) do |i|
+                
+                sutehai_cands = []
+                for pai in self.tehais.uniq()
                   remains = self.tehais.dup()
-                  remains.delete_at(i)
-                  if ShantenAnalysis.new(remains, shanten).shanten == shanten
-                    sutehai = self.tehais[i]
-                    break
+                  remains.delete_at(self.tehais.index(pai))
+                  if ShantenAnalysis.new(remains, current_shanten, [:normal]).shanten ==
+                      current_shanten
+                    sutehai_cands.push(pai)
                   end
                 end
-                p [:shanten, @id, shanten]
-                return create_action({:type => :dahai, :pai => sutehai})
+                p [:sutehai_cands, sutehai_cands]
+                return create_action({:type => :dahai, :pai => sutehai_cands.sample})
                 
             end
             
@@ -55,8 +64,12 @@ module Mjai
             
             case action.type
               when :dahai
-                if ShantenAnalysis.new(self.tehais + [action.pai]).shanten == -1
-                  return create_action({:type => :hora, :target => action.actor, :pai => action.pai})
+                if self.can_hora?
+                  return create_action({
+                      :type => :hora,
+                      :target => action.actor,
+                      :pai => action.pai,
+                  })
                 elsif USE_FURO
                   if self.tehais.select(){ |pai| pai == action.pai }.size >= 3
                     #@game.last = true

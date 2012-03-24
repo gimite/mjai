@@ -15,6 +15,7 @@ module Mjai
           @bakaze = nil
           @oya = nil
           @dora_markers = nil
+          @current_action = nil
           @previous_action = nil
           @num_pipais = nil
         end
@@ -25,6 +26,7 @@ module Mjai
         attr_reader(:oya)
         attr_reader(:honba)
         attr_reader(:dora_markers)  # ドラ表示牌
+        attr_reader(:current_action)
         attr_reader(:previous_action)
         attr_reader(:all_pais)
         attr_reader(:num_pipais)
@@ -58,6 +60,7 @@ module Mjai
         # Updates internal state of Game and Player objects by the action.
         def update_state(action)
           
+          @current_action = action
           @actor = action.actor if action.actor
           
           case action.type

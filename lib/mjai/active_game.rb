@@ -24,7 +24,6 @@ module Mjai
         end
         
         def play_kyoku()
-          $stderr.puts("play_kyoku")
           catch(:end_kyoku) do
             @pipais = @all_pais.shuffle()
             @pipais.shuffle!()
@@ -153,8 +152,11 @@ module Mjai
         def update_next_oya(renchan)
           if renchan
             @next_oya = self.oya
-          elsif self.bakaze == Pai.new("S") && self.oya == @players[3]
-            # TODO Consider 西入、東風戦.
+          elsif @game_type == :tonpu && self.bakaze == Pai.new("E") && self.oya == @players[3]
+            # TODO Consider 南入
+            @last = true
+          elsif @game_type == :tonnan && self.bakaze == Pai.new("S") && self.oya == @players[3]
+            # TODO Consider 西入
             @last = true
           else
             @next_oya = @players[(self.oya.id + 1) % 4]

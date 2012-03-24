@@ -8,13 +8,7 @@ module Mjai
     
     class Player
         
-        def initialize()
-          @points = 25000
-          @attributes = OpenStruct.new()
-        end
-        
         attr_reader(:id)
-        attr_reader(:name)
         attr_reader(:tehais)  # 手牌
         attr_reader(:furos)  # 副露
         attr_reader(:ho)  # 河 (鳴かれた牌を含まない)
@@ -22,6 +16,7 @@ module Mjai
         attr_reader(:extra_anpais)  # sutehais以外のこのプレーヤに対する安牌
         attr_reader(:reach_ho_index)
         attr_reader(:attributes)
+        attr_accessor(:name)
         attr_accessor(:game)
         attr_accessor(:points)
         
@@ -46,6 +41,8 @@ module Mjai
             when :start_game
               @id = action.id
               @name = action.names[@id] if action.names
+              @points = 25000
+              @attributes = OpenStruct.new()
             when :start_kyoku
               @tehais = []
               @furos = []
@@ -124,6 +121,32 @@ module Mjai
           return false if !tenpai_info.tenpai?
           anpais = self.anpais
           return tenpai_info.waited_pais.any?(){ |pai| anpais.include?(pai) }
+        end
+        
+        def can_reach?(shanten_analysis = nil)
+          shanten_analysis ||= ShantenAnalysis.new(@tehais, 0)
+          return self.game.current_action.type == :tsumo &&
+              self.game.current_action.actor == self &&
+              !self.reach? &&
+              shanten_analysis.shanten <= 0 &&
+              self.game.num_pipais >= 4
+        end
+        
+        def can_hora?(shanten_analysis = nil)
+          action = self.game.current_action
+          if action.type == :tsumo && action.actor == self
+            hora_type = :tsumo
+            hais = @tehais
+          elsif action.type == :dahai && action.actor != self
+            hora_type = :ron
+            hais = @tehais + [action.pai]
+          else
+            return false
+          end
+          shanten_analysis ||= ShantenAnalysis.new(hais, -1)
+          # TODO check yaku
+          return shanten_analysis.shanten == -1 &&
+              (hora_type == :tsumo || !self.furiten?)
         end
         
         def context
