@@ -126,10 +126,14 @@ module Mjai
                     next if ![:toitsu, :kotsu].include?(mentsus[janto_index][0])
                     t_mentsus.delete_at(janto_index)
                   end
+                  num_required_mentsus = @shanten_analysis.pais.size / 3
                   t_shanten =
                       -1 +
                       (janto_index ? 0 : 1) +
-                      t_mentsus.map(){ |t, ps| 3 - ps.size }.sort()[0, 4].inject(0, :+)
+                      t_mentsus.
+                          map(){ |t, ps| 3 - ps.size }.
+                          sort()[0, num_required_mentsus].
+                          inject(0, :+)
                   #p [:t_shanten, janto_index, t_shanten, @shanten_analysis.shanten]
                   next if t_shanten != @shanten_analysis.shanten
                   num_groups = t_mentsus.select(){ |t, ps| ps.size >= 2 }.size
@@ -139,7 +143,7 @@ module Mjai
                       # 1 -> janto
                       rnums_cands.push([0])
                     end
-                    if !janto_index && pais.size == 2 && num_groups >= 5
+                    if !janto_index && pais.size == 2 && num_groups > num_required_mentsus
                       # 2 -> janto
                       case type
                         when :ryanpen
@@ -161,7 +165,7 @@ module Mjai
                           raise("should not happen")
                       end
                     end
-                    if pais.size == 1 && num_groups < 4
+                    if pais.size == 1 && num_groups < num_required_mentsus
                       # 1 -> 2
                       rnums_cands.push([-2], [-1], [0], [1], [2])
                     end

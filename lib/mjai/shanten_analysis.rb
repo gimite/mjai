@@ -264,6 +264,10 @@ module Mjai
           end
         end
         
+        def inspect
+          return "\#<%p shanten=%d pais=<%s>>" % [self.class, @shanten, @pais.join(" ")]
+        end
+        
     end
     
 end

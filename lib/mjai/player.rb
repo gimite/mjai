@@ -125,15 +125,16 @@ module Mjai
         
         def can_reach?(shanten_analysis = nil)
           shanten_analysis ||= ShantenAnalysis.new(@tehais, 0)
-          return self.game.current_action.type == :tsumo &&
-              self.game.current_action.actor == self &&
-              !self.reach? &&
+          return @game.current_action.type == :tsumo &&
+              @game.current_action.actor == self &&
               shanten_analysis.shanten <= 0 &&
+              @furos.empty? &&
+              !@reach &&
               self.game.num_pipais >= 4
         end
         
         def can_hora?(shanten_analysis = nil)
-          action = self.game.current_action
+          action = @game.current_action
           if action.type == :tsumo && action.actor == self
             hora_type = :tsumo
             hais = @tehais
@@ -147,6 +148,47 @@ module Mjai
           # TODO check yaku
           return shanten_analysis.shanten == -1 &&
               (hora_type == :tsumo || !self.furiten?)
+        end
+        
+        def possible_furo_actions
+          # TODO Consider red pai
+          action = @game.current_action
+          if (action.type != :dahai || action.actor == self) ||
+              @reach ||
+              @game.num_pipais < 4
+            return []
+          end
+          result = []
+          if @tehais.select(){ |pai| pai == action.pai }.size >= 3
+            result.push(create_action({
+              :type => :daiminkan,
+              :pai => action.pai,
+              :consumed => [action.pai] * 3,
+              :target => action.actor
+            }))
+          elsif @tehais.select(){ |pai| pai == action.pai }.size >= 2
+            result.push(create_action({
+              :type => :pon,
+              :pai => action.pai,
+              :consumed => [action.pai] * 2,
+              :target => action.actor
+            }))
+          elsif (action.actor.id + 1) % 4 == self.id && action.pai.type != "t"
+            for i in 0...3
+              consumed = (((-i)...(-i + 3)).to_a() - [0]).map() do |j|
+                Pai.new(action.pai.type, action.pai.number + j)
+              end
+              if consumed.all?(){ |pai| @tehais.index(pai) }
+                result.push(create_action({
+                  :type => :chi,
+                  :pai => action.pai,
+                  :consumed => consumed,
+                  :target => action.actor,
+                }))
+              end
+            end
+          end
+          return result
         end
         
         def context

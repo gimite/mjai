@@ -10,7 +10,9 @@ module Mjai
 
     class StatisticalPlayer < Player
         
-        class DahaiDecision
+        DahaiEval = Struct.new(:cheapness, :prob_info, :points_estimate, :expected_points, :score)
+        
+        class Scene
             
             def initialize(params)
               
@@ -19,6 +21,7 @@ module Mjai
               hora_prob_estimator = params[:hora_prob_estimator]
               num_remain_turns = params[:num_remain_turns]
               current_shanten_analysis = params[:current_shanten_analysis]
+              furos = params[:furos]
               sutehai_cands = params[:sutehai_cands]
               score_type = params[:score_type]
               
@@ -29,46 +32,59 @@ module Mjai
                   :current_shanten => current_shanten_analysis.shanten,
               })
               
-              scores = {}
+              @evals = {}
               for pai in sutehai_cands
                 #p [:pai, pai]
-                idx = tehais.index(pai)
-                remains = tehais.dup()
-                remains.delete_at(idx)
-                shanten_analysis = ShantenAnalysis.new(
-                    remains, current_shanten_analysis.shanten, [:normal])
-                cheapness = pai.type == "t" ? 5 : (5 - pai.number).abs
+                eval = DahaiEval.new()
+                if pai
+                  idx = tehais.index(pai)
+                  remains = tehais.dup()
+                  remains.delete_at(idx)
+                  shanten_analysis = ShantenAnalysis.new(
+                      remains, current_shanten_analysis.shanten, [:normal])
+                  eval.cheapness = pai.type == "t" ? 5 : (5 - pai.number).abs
+                else
+                  remains = tehais
+                  shanten_analysis = current_shanten_analysis
+                end
                 # TODO Reuse shanten_analysis
-                prob_info = scene.get_tehais(remains)
-                points_estimate = HoraPointsEstimate.new({
+                eval.prob_info = scene.get_tehais(remains)
+                eval.points_estimate = HoraPointsEstimate.new({
                     :shanten_analysis => shanten_analysis,
-                    :furos => [],
+                    :furos => furos,
                     :context => context,
                 })
-                expected_points = points_estimate.average_points * prob_info.hora_prob
+                eval.expected_points =
+                    eval.points_estimate.average_points * eval.prob_info.hora_prob
                 case score_type
                   when :expected_points
-                    scores[idx] = [expected_points, prob_info.progress_prob, cheapness]
+                    eval.score =
+                        [eval.expected_points, eval.prob_info.progress_prob, eval.cheapness]
                   when :progress_prob
-                    scores[idx] = [prob_info.progress_prob, cheapness]
+                    eval.score = [eval.prob_info.progress_prob, eval.cheapness]
                   else
                     raise("unknown score_type")
                 end
-                if prob_info.progress_prob > 0.0
+                if eval.prob_info.progress_prob > 0.0
                   puts("%s: ept=%d ppr=%.3f hpr=%.3f apt=%d (%s)" % [
-                      pai, expected_points, prob_info.progress_prob, prob_info.hora_prob,
-                      points_estimate.average_points, points_estimate.yaku_debug_str,
+                      pai,
+                      eval.expected_points,
+                      eval.prob_info.progress_prob,
+                      eval.prob_info.hora_prob,
+                      eval.points_estimate.average_points,
+                      eval.points_estimate.yaku_debug_str,
                   ])
                 end
+                @evals[pai] = eval
               end
               
-              max_score = scores.values.max
-              @best_dahai_indices = scores.keys.select(){ |i| scores[i] == max_score }
-              @best_dahai_index = @best_dahai_indices.sample
+              max_score = @evals.values.map(){ |e| e.score }.max
+              @best_dahais = @evals.keys.select(){ |pai| @evals[pai].score == max_score }
+              @best_dahai = @best_dahais.sample
               
             end
             
-            attr_reader(:best_dahai_indices, :best_dahai_index)
+            attr_reader(:best_dahais, :best_dahai, :evals)
             
         end
         
@@ -139,25 +155,12 @@ module Mjai
                 end
                 p [:sutehai_cands, sutehai_cands]
                 
-                visible = []
-                visible += self.game.doras
-                visible += self.tehais
-                for player in self.game.players
-                  visible += player.ho + player.furos.map(){ |f| f.pais }.flatten()
-                end
-                visible_set = to_pai_set(visible)
-                
-                decision = DahaiDecision.new({
-                    :visible_set => visible_set,
-                    :context => self.context,
-                    :hora_prob_estimator => @hora_prob_estimator,
-                    :num_remain_turns => self.game.num_pipais / 4,
+                scene = get_scene({
                     :current_shanten_analysis => current_shanten_analysis,
                     :sutehai_cands => sutehai_cands,
-                    :score_type => @score_type,
                 })
                 
-                p [:dahai, self.tehais[decision.best_dahai_index]]
+                p [:dahai, scene.best_dahai]
                 #if self.id == 0
                 #if has_reacher
                 #  print("> ")
@@ -166,7 +169,7 @@ module Mjai
                 
                 return create_action({
                     :type => :dahai,
-                    :pai => self.tehais[decision.best_dahai_index],
+                    :pai => scene.best_dahai,
                 })
                 
             end
@@ -181,6 +184,50 @@ module Mjai
                       :target => action.actor,
                       :pai => action.pai,
                   })
+                else
+                  furo_actions = self.possible_furo_actions
+                  if !furo_actions.empty?
+                    current_shanten_analysis = ShantenAnalysis.new(self.tehais, nil, [:normal])
+                    current_scene = get_scene({
+                        :current_shanten_analysis => current_shanten_analysis,
+                        :sutehai_cands => [nil],
+                    })
+                    current_expected_points = current_scene.evals[nil].expected_points
+                    for action in furo_actions
+                      next if action.type == :daiminkan  # TODO Implement later
+                      remains = self.tehais.dup()
+                      for pai in action.consumed
+                        remains.delete_at(remains.index(pai))
+                      end
+                      furo = Furo.new({
+                          :type => action.type,
+                          :taken => action.pai,
+                          :consumed => action.consumed,
+                          :target => action.target,
+                      })
+                      shanten_analysis_with_furo = ShantenAnalysis.new(remains, nil, [:normal])
+                      scene_with_furo = get_scene({
+                          :current_shanten_analysis => shanten_analysis_with_furo,
+                          :furos => self.furos + [furo],
+                          :sutehai_cands => remains.uniq(),
+                      })
+                      best_eval =
+                          scene_with_furo.best_dahais.
+                          map(){ |pai| scene_with_furo.evals[pai] }.
+                          max_by(){ |e| e.expected_points }
+                      expected_points_with_furo = best_eval.expected_points
+                      puts("furo_cand: %s" % action)
+                      puts("  shanten: %d -> %d" % [
+                          current_shanten_analysis.shanten,
+                          shanten_analysis_with_furo.shanten,
+                      ])
+                      puts("  ept: %d -> %d" % [current_expected_points, expected_points_with_furo])
+                      #gets()
+                      if expected_points_with_furo > current_expected_points
+                        return action
+                      end
+                    end
+                  end
                 end
               when :reach_accepted
                 @prereach_sutehais_map[action.actor] = action.actor.sutehais.dup()
@@ -189,6 +236,27 @@ module Mjai
           end
           
           return nil
+        end
+        
+        def get_scene(params)
+          visible = []
+          visible += self.game.doras
+          visible += self.tehais
+          for player in self.game.players
+            visible += player.ho + player.furos.map(){ |f| f.pais }.flatten()
+          end
+          visible_set = to_pai_set(visible)
+          default_params = {
+            :visible_set => visible_set,
+            :context => self.context,
+            :hora_prob_estimator => @hora_prob_estimator,
+            :num_remain_turns => self.game.num_pipais / 4,
+            :furos => self.furos,
+            :score_type => @score_type,
+          }
+          params = default_params.merge(params)
+          # pp params.reject(){ |k, v| [:visible_set, :hora_prob_estimator, :context].include?(k) }
+          return Scene.new(params)
         end
         
         # This is too slow but left here as most precise baseline.

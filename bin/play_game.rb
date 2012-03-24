@@ -17,7 +17,11 @@ opts = OptionParser.getopts("",
     "step",
     "players:stat_ppr,stat_ppr,stat_ppr,stat_ppr",
     "repeat:1",
-    "game_type:one_kyoku")
+    "game_type:one_kyoku",
+    "srand:")
+if opts["srand"]
+  srand(opts["srand"].to_i())
+end
 players = []
 for s in opts["players"].split(/,/)
   case s

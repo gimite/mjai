@@ -20,31 +20,38 @@ class TC_StatisticalPlayer < Test::Unit::TestCase
       })
     end
     
-    def test_dahai_decision()
-      #decision = get_decision(Pai.parse_pais("123m 789m 134m 788p SS"))
-      #decision = get_decision(Pai.parse_pais("23789m23789p23sNN"))
+    def test_dahai_scene()
+      #scene = get_scene(Pai.parse_pais("123m 789m 134m 788p SS"))
+      #scene = get_scene(Pai.parse_pais("23789m23789p23sNN"))
       context = Context.new({
           :oya => true,
           :bakaze => Pai.new("E"),
           :jikaze => Pai.new("E"),
           :doras => Pai.parse_pais("1p"),
       })
-      decision = get_decision(Pai.parse_pais("23m 67m 13p 89p 2s EE WW C"), {:context => context})
+      #scene = get_scene(Pai.parse_pais("23m 67m 13p 89p 2s EE WW C"), {:context => context})
+      scene = get_scene(
+          Pai.parse_pais("1p 1p 2p 7p 7p 3s 5s 5s 9s P  P"), {
+              :furos => [Furo.new({
+                  :type => :chi, :taken => Pai.new("9s"), :consumed => Pai.parse_pais("78s")})],
+          })
+      #p scene.evals[scene.best_dahai]
     end
     
-    def get_decision(tehais, params = {})
+    def get_scene(tehais, params = {})
       default_params = {
           :visible_set => to_pai_set(tehais),
           :context => @default_context,
           :hora_prob_estimator => @hora_prob_estimator,
           :num_remain_turns => 16,
           :current_shanten_analysis => ShantenAnalysis.new(tehais, nil, [:normal]),
-          :sutehai_cands => tehais,
+          :furos => [],
+          :sutehai_cands => tehais.uniq(),
           :score_type => :expected_points,
       }
-      decision = StatisticalPlayer::DahaiDecision.new(default_params.merge(params))
-      p [:best_dahai, decision.best_dahai_indices.map(){ |i| tehais[i] }]
-      return decision
+      scene = StatisticalPlayer::Scene.new(default_params.merge(params))
+      p [:best_dahai, scene.best_dahais]
+      return scene
     end
     
     def to_pai_set(pais)

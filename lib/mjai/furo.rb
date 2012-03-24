@@ -48,6 +48,10 @@ module Mjai
           end
         end
         
+        def inspect
+          return "\#<%p %s>" % [self.class, to_s()]
+        end
+        
     end
     
 end
