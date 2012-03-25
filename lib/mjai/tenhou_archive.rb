@@ -82,16 +82,27 @@ module Mjai
                     when "1"
                       return do_action({:type => :reach, :actor => actor})
                     when "2"
-                      return do_action({:type => :reach_accepted, :actor => actor})
+                      deltas = [0, 0, 0, 0]
+                      deltas[actor.id] = -1000
+                      player_points = elem["ten"].split(/,/).map(){ |s| s.to_i() * 100 }
+                      return do_action({
+                          :type => :reach_accepted,
+                          :actor => actor,
+                          :deltas => deltas,
+                          :player_points => player_points,
+                      })
                     else
                       raise("should not happen")
                   end
                 when "AGARI"
+                  points_params = get_points_params(elem["sc"])
                   do_action({
                     :type => :hora,
                     :actor => self.players[elem["who"].to_i()],
                     :target => self.players[elem["fromWho"].to_i()],
                     :pai => pid_to_pai(elem["machi"]),
+                    :deltas => points_params[:deltas],
+                    :player_points => points_params[:player_points],
                   })
                   if elem["owari"]
                     do_action({:type => :end_kyoku})
@@ -99,6 +110,7 @@ module Mjai
                   end
                   return nil
                 when "RYUUKYOKU"
+                  points_params = get_points_params(elem["sc"])
                   reason_map = {
                     "yao9" => :kyushukyuhai,
                     "kaze4" => :sufonrenta,
@@ -111,7 +123,12 @@ module Mjai
                   reason = reason_map[elem["type"]]
                   raise("unknown reason") if !reason
                   # TODO add actor for some reasons
-                  do_action({:type => :ryukyoku, :reason => reason})
+                  do_action({
+                      :type => :ryukyoku,
+                      :reason => reason,
+                      :deltas => points_params[:deltas],
+                      :player_points => points_params[:player_points],
+                  })
                   if elem["owari"]
                     do_action({:type => :end_kyoku})
                     do_action({:type => :end_game})
@@ -137,6 +154,15 @@ module Mjai
             
             def path
               return nil
+            end
+            
+            def get_points_params(sc_str)
+              sc_nums = sc_str.split(/,/).map(&:to_i)
+              result = {}
+              result[:deltas] = (0...4).map(){ |i| sc_nums[2 * i + 1] * 100 }
+              result[:player_points] =
+                  (0...4).map(){ |i| sc_nums[2 * i] * 100 + result[:deltas][i] }
+              return result
             end
             
             def delete_tehai_by_pid(player, pid)

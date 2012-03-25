@@ -72,7 +72,13 @@ module Mjai
               end
               actions = choose_actions(responses)
               if reach && (actions.empty? || ![:dahai, :hora].include?(actions[0].type))
-                do_action(Action.new({:type => :reach_accepted, :actor => tsumo_actor}))
+                deltas = [0, 0, 0, 0]
+                deltas[tsumo_actor.id] = -1000
+                do_action(Action.new({
+                    :type => :reach_accepted,:actor => tsumo_actor,
+                    :deltas => deltas,
+                    :player_points => get_player_points(deltas),
+                }))
               end
             end
           end
@@ -132,9 +138,6 @@ module Mjai
             else
               deltas[action.target.id] -= (hora.points + self.honba * 300)
             end
-            for player in self.players
-              player.points += deltas[player.id]
-            end
             # TODO 役をフィールドに追加
             do_action(Action.new({
               :type => action.type,
@@ -145,7 +148,7 @@ module Mjai
               :fan => hora.fan,
               :hora_points => hora.points,
               :deltas => deltas,
-              :player_points => self.players.map(){ |pl| pl.points },
+              :player_points => get_player_points(deltas),
             }))
           end
           update_next_oya(actions.any?(){ |a| a.actor == self.oya })
@@ -184,6 +187,10 @@ module Mjai
         
         def expect_response_from?(player)
           return true
+        end
+        
+        def get_player_points(deltas)
+          return (0...4).map(){ |i| self.players[i].points + deltas[i] }
         end
         
     end

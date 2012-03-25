@@ -14,6 +14,7 @@ module Mjai
         attr_reader(:ho)  # 河 (鳴かれた牌を含まない)
         attr_reader(:sutehais)  # 捨牌 (鳴かれた牌を含む)
         attr_reader(:extra_anpais)  # sutehais以外のこのプレーヤに対する安牌
+        attr_reader(:reach_state)
         attr_reader(:reach_ho_index)
         attr_reader(:attributes)
         attr_accessor(:name)
@@ -25,7 +26,7 @@ module Mjai
         end
         
         def reach?
-          return @reach
+          return @reach_state == :accepted
         end
         
         def update_state(action)
@@ -49,7 +50,7 @@ module Mjai
               @ho = []
               @sutehais = []
               @extra_anpais = []
-              @reach = false
+              @reach_state = :none
               @reach_ho_index = nil
           end
           
@@ -64,7 +65,7 @@ module Mjai
                 @tehais.sort!()
                 @ho.push(action.pai)
                 @sutehais.push(action.pai)
-                @extra_anpais.clear() if !@reach
+                @extra_anpais.clear() if !self.reach?
               when :chi, :pon, :daiminkan, :ankan
                 for pai in action.consumed
                   delete_tehai(pai)
@@ -86,10 +87,11 @@ module Mjai
                   :consumed => @furos[pon_index].consumed + [action.pai],
                   :target => @furos[pon_index].target,
                 })
+              when :reach
+                @reach_state = :declared
               when :reach_accepted
-                @reach = true
+                @reach_state = :accepted
                 @reach_ho_index = @ho.size - 1
-                @points -= 1000
             end
           end
           
@@ -99,6 +101,10 @@ module Mjai
                 pai = @ho.pop()
                 raise("should not happen") if pai != action.pai
             end
+          end
+          
+          if action.player_points
+            @points = action.player_points[self.id]
           end
           
         end
@@ -130,8 +136,9 @@ module Mjai
               @game.current_action.actor == self &&
               shanten_analysis.shanten <= 0 &&
               @furos.empty? &&
-              !@reach &&
-              self.game.num_pipais >= 4
+              !self.reach? &&
+              self.game.num_pipais >= 4 &&
+              @points >= 1000
         end
         
         def can_hora?(shanten_analysis = nil)
@@ -155,7 +162,7 @@ module Mjai
           # TODO Consider red pai
           action = @game.current_action
           if (action.type != :dahai || action.actor == self) ||
-              @reach ||
+              self.reach? ||
               @game.num_pipais < 4
             return []
           end
