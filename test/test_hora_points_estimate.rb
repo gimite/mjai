@@ -54,6 +54,20 @@ class TC_HoraPointsEstimate < Test::Unit::TestCase
           [Furo.new({:type => :pon, :consumed => Pai.parse_pais("99m"), :taken => Pai.new("9m")})])
       assert_in_delta(0.0, est.average_points)
       
+      est = get_estimate("12m 456m 789m E FF PP")
+      assert_in_delta(3.0, est.yaku_pfans[:iso].expected)
+      
+      est = get_estimate("12m 456m 789m FF",
+          [Furo.new({:type => :pon, :consumed => Pai.parse_pais("99m"), :taken => Pai.new("9m")})])
+      assert_in_delta(2.0, est.yaku_pfans[:iso].expected)
+      
+      est = get_estimate("11m 33m 55m 777m 999m E")
+      assert_in_delta(6.0, est.yaku_pfans[:iso].expected)
+      
+      est = get_estimate("11m 33m 55m 777m E",
+          [Furo.new({:type => :pon, :consumed => Pai.parse_pais("99m"), :taken => Pai.new("9m")})])
+      assert_in_delta(5.0, est.yaku_pfans[:iso].expected)
+      
     end
     
     def get_estimate(pais_str, furos = [])

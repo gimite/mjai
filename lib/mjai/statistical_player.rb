@@ -186,7 +186,8 @@ module Mjai
                   })
                 else
                   furo_actions = self.possible_furo_actions
-                  if !furo_actions.empty?
+                  if !furo_actions.empty? &&
+                      !self.game.players.any?(){ |pl| pl != self && pl.reach? }
                     current_shanten_analysis = ShantenAnalysis.new(self.tehais, nil, [:normal])
                     current_scene = get_scene({
                         :current_shanten_analysis => current_shanten_analysis,

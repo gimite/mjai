@@ -15,7 +15,7 @@ module Mjai
         TSUMO_HORA_PROB = 0.5
         
         # TODO Add ippatsu, uradora
-        SUPPORTED_YAKUS = [:reach, :tanyaochu, :pinfu, :fanpai, :dora, :akadora]
+        SUPPORTED_YAKUS = [:reach, :tanyaochu, :pinfu, :iso, :fanpai, :dora, :akadora]
         
         DORA_YAKUS = [:dora, :akadora, :uradora]
         
@@ -46,22 +46,26 @@ module Mjai
             attr_reader(:probs)
             
             def +(other)
-              return apply(:+, other)
+              return apply(other){ |f1, f2| f1 + f2 } 
             end
             
             def *(other)
-              return apply(:*, other)
+              return apply(other){ |f1, f2| f1 * f2 }
+            end
+            
+            def max(other)
+              return apply(other){ |f1, f2| [f1, f2].max }
             end
             
             def expected
               @probs.map(){ |f, pr| f * pr }.inject(0.0, :+)
             end
             
-            def apply(operator, other)
+            def apply(other, &block)
               new_probs = Hash.new(0.0)
               for f1, p1 in @probs
                 for f2, p2 in other.probs
-                  new_probs[f1.__send__(operator, f2)] += p1 * p2 if p1 * p2 > 0.0
+                  new_probs[block.call(f1, f2)] += p1 * p2 if p1 * p2 > 0.0
                 end
               end
               return ProbablisticFan.new(new_probs)
@@ -86,22 +90,7 @@ module Mjai
             attr_reader(:mentsu_candidates)
             
             def yaku_pfan(yaku)
-              case yaku
-                when :reach
-                  return self.reach_pfan
-                when :tanyaochu
-                  return self.tanyaochu_pfan
-                when :pinfu
-                  return self.pinfu_pfan
-                when :fanpai
-                  return self.fanpai_pfan
-                when :dora
-                  return self.dora_pfan
-                when :akadora
-                  return self.akadora_pfan
-                else
-                  raise("not implemented")
-              end
+              return __send__("#{yaku}_pfan")
             end
             
             def reach_pfan
@@ -135,6 +124,30 @@ module Mjai
                 prob = 0.0
               end
               return ProbablisticFan.new({0 => 1.0 - prob, 1 => prob})
+            end
+            
+            def iso_pfan
+              pfan = ProbablisticFan.new(0)
+              for type in ["m", "p", "s"]
+                chiniso_prob = get_iso_prob([type])
+                honiso_prob = get_iso_prob([type, "t"]) - chiniso_prob
+                type_prob = ProbablisticFan.new({
+                    0 => 1.0 - honiso_prob - chiniso_prob,
+                    (@menzen ? 3 : 2) => honiso_prob,
+                    (@menzen ? 6 : 5) => chiniso_prob,
+                })
+                pfan = pfan.max(type_prob)
+              end
+              return pfan
+            end
+            
+            def get_iso_prob(types)
+              prob = 1.0
+              prob *= get_prob(@janto_candidates){ |m| types.include?(m.pais[0].type) }
+              for cands in @mentsu_candidates
+                prob *= get_prob(cands){ |m| types.include?(m.pais[0].type) }
+              end
+              return prob
             end
             
             def fanpai_pfan
@@ -256,17 +269,6 @@ module Mjai
             [true, true, true] => 20,
         }
         
-        def yaku_debug_str
-          [:reach, :tanyaochu, :pinfu, :fanpai, :dora, :akadora]
-          short_names =
-              [[:tanyaochu, "ty"], [:pinfu, "pf"], [:fanpai, "fp"], [:dora, "dr"], [:akadora, "ad"]]
-          strs = short_names.map() do |yaku, short_name|
-            exp_fan = @yaku_pfans[yaku].expected
-            exp_fan < 0.001 ? nil : "%s=%.2f" % [short_name, exp_fan]
-          end
-          return strs.select(){ |s| s }.join(" ")
-        end
-        
         def get_expanded_combinations()
           furo_mentsus = @furos.map(){ |f| f.to_mentsu() }
           result = []
@@ -379,6 +381,23 @@ module Mjai
           end
           return result
           
+        end
+        
+        def yaku_debug_str
+          [:reach, :tanyaochu, :pinfu, :fanpai, :dora, :akadora]
+          short_names = [
+              [:tanyaochu, "ty"],
+              [:pinfu, "pf"],
+              [:iso, "is"],
+              [:fanpai, "fp"],
+              [:dora, "dr"],
+              [:akadora, "ad"],
+          ]
+          strs = short_names.map() do |yaku, short_name|
+            exp_fan = @yaku_pfans[yaku].expected
+            exp_fan < 0.001 ? nil : "%s=%.2f" % [short_name, exp_fan]
+          end
+          return strs.select(){ |s| s }.join(" ")
         end
         
         def dump()
