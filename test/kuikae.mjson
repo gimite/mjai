@@ -1,0 +1,10 @@
+{"type":"start_game","uri":"http://example.com/","names":["NoName","NoName","NoName","NoName"]}
+{"type":"start_kyoku","oya":3,"dora_marker":"8m"}
+{"type":"haipai","actor":3,"pais":["?","?","?","?","?","?","?","?","?","?","?","?","?"]}
+{"type":"haipai","actor":0,"pais":["1m","2m","3m","E","E","E","S","S","S","W","W","W","N"]}
+{"type":"haipai","actor":1,"pais":["?","?","?","?","?","?","?","?","?","?","?","?","?"]}
+{"type":"haipai","actor":2,"pais":["?","?","?","?","?","?","?","?","?","?","?","?","?"]}
+{"type":"tsumo","actor":3,"pai":"?"}
+{"type":"dahai","actor":3,"pai":"4m"}
+{"type":"chi","actor":0,"target":3,"pai":"4m","consumed":["2m","3m"]}
+{"type":"dahai","actor":0,"pai":"1m"}

@@ -77,7 +77,8 @@ module Mjai
                 }))
               when :kakan
                 delete_tehai(action.pai)
-                pon_index = @furos.index(){ |f| f.type == :pon && f.taken.same_symbol?(action.pai) }
+                pon_index =
+                    @furos.index(){ |f| f.type == :pon && f.taken.same_symbol?(action.pai) }
                 raise("should not happen") if !pon_index
                 @furos[pon_index] = Furo.new({
                   :type => :kakan,
@@ -188,7 +189,43 @@ module Mjai
               end
             end
           end
-          return result
+          # Excludes furos which forces kuikae afterwards.
+          return result.select() do |a|
+            a.type == :daiminkan || !possible_dahais_after_furo(a).empty?
+          end
+        end
+        
+        def possible_dahais(action = @game.current_action, tehais = @tehais)
+          # Excludes kuikae.
+          if action.type == :chi && action.actor == self
+            if action.consumed[1].number == action.consumed[0].number + 1
+              forbidden_rnums = [-1, 2]
+            else
+              forbidden_rnums = [1]
+            end
+          elsif action.type == :pon && action.actor == self
+            forbidden_rnums = [0]
+          else
+            forbidden_rnums = []
+          end
+          cands = tehais.uniq()
+          if !forbidden_rnums.empty?
+            key_pai = action.consumed[0]
+            return cands.select() do |pai|
+              !(pai.type == key_pai.type &&
+                  forbidden_rnums.any?(){ |rn| key_pai.number + rn == pai.number })
+            end
+          else
+            return cands
+          end
+        end
+        
+        def possible_dahais_after_furo(action)
+          remains = @tehais.dup()
+          for pai in action.consumed
+            remains.delete_at(remains.index(pai))
+          end
+          return possible_dahais(action, remains)
         end
         
         def context

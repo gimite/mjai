@@ -126,10 +126,10 @@ module Mjai
                 p [:shanten, current_shanten]
                 
                 if current_shanten == 0
-                  sutehai_cands = self.tehais.uniq()
+                  sutehai_cands = self.possible_dahais
                 else
                   safe_probs = {}
-                  for pai in self.tehais.uniq()
+                  for pai in self.possible_dahais
                     safe_probs[pai] = 1.0
                   end
                   has_reacher = false
@@ -222,8 +222,8 @@ module Mjai
                           shanten_analysis_with_furo.shanten,
                       ])
                       puts("  ept: %d -> %d" % [current_expected_points, expected_points_with_furo])
-                      #gets()
                       if expected_points_with_furo > current_expected_points
+                        #gets()  # kari
                         return action
                       end
                     end

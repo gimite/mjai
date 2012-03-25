@@ -26,7 +26,9 @@ players = []
 for s in opts["players"].split(/,/)
   case s
     when "shanten"
-      player = Mjai::ShantenPlayer.new()
+      player = Mjai::ShantenPlayer.new({:use_furo => false})
+    when "shanten_f"
+      player = Mjai::ShantenPlayer.new({:use_furo => true})
     when "stat_ppr"
       player = Mjai::StatisticalPlayer.new({:score_type => :progress_prob})
     when "stat_ept"

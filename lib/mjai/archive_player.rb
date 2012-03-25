@@ -34,7 +34,8 @@ module Mjai
           if next_action &&
               next_action.actor &&
               next_action.actor.id == 0 &&
-              [:dahai, :chi, :pon, :kan, :reach, :hora].include?(next_action.type)
+              [:dahai, :chi, :pon, :daiminkan, :kakan, :ankan, :reach, :hora].include?(
+                  next_action.type)
             return Action.from_json(next_action.to_json(), self.game)
           else
             return nil

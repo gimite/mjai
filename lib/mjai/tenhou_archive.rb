@@ -16,6 +16,7 @@ module Mjai
         module Util
             
             def on_tenhou_event(elem, next_elem = nil)
+              verify_tenhou_tehais()
               case elem.name
                 when "SHUFFLE", "GO", "BYE"
                   # BYE: log out
@@ -69,7 +70,7 @@ module Mjai
                 when /^([D-G])(\d+)?$/i
                   player_id = ["D", "E", "F", "G"].index($1.upcase)
                   pid = $2
-                  self.players[player_id].attributes.tenhou_tehai_pids.delete(pid)
+                  delete_tehai_by_pid(self.players[player_id], pid)
                   return do_action({
                       :type => :dahai,
                       :actor => self.players[player_id],
@@ -118,7 +119,12 @@ module Mjai
                   return nil
                 when "N"
                   actor = self.players[elem["who"].to_i()]
-                  return do_action(TenhouFuro.new(elem["m"].to_i()).to_action(self, actor))
+                  furo = TenhouFuro.new(elem["m"].to_i())
+                  consumed_pids = furo.type == :kakan ? [furo.taken_pid] : furo.consumed_pids
+                  for pid in consumed_pids
+                    delete_tehai_by_pid(actor, pid)
+                  end
+                  return do_action(furo.to_action(self, actor))
                 when "DORA"
                   do_action({:type => :dora, :dora_marker => pid_to_pai(elem["hai"])})
                   return nil
@@ -131,6 +137,26 @@ module Mjai
             
             def path
               return nil
+            end
+            
+            def delete_tehai_by_pid(player, pid)
+              idx = player.attributes.tenhou_tehai_pids.index(){ |tp| !tp || tp == pid }
+              if !idx
+                raise("%d not found in %p" % [pid, player.attributes.tenhou_tehai_pids])
+              end
+              player.attributes.tenhou_tehai_pids.delete_at(idx)
+            end
+            
+            def verify_tenhou_tehais()
+              for player in self.players
+                next if !player.tehais
+                tenhou_tehais =
+                    player.attributes.tenhou_tehai_pids.map(){ |pid| pid_to_pai(pid) }.sort()
+                tehais = player.tehais.sort()
+                if tenhou_tehais != tehais
+                  raise("tenhou_tehais != tehais: %p != %p" % [tenhou_tehais, tehais])
+                end
+              end
             end
             
           module_function
@@ -146,6 +172,10 @@ module Mjai
                 (pid / 4) % 9 + 1,
                 pid % 4,
               ]
+            end
+            
+            def compose_pid(type_id, number, cid)
+              return ((type_id * 9 + (number - 1)) * 4 + cid).to_s()
             end
             
             def get_pai(type_id, number, cid)
@@ -184,14 +214,14 @@ module Mjai
               parse_kan()
             end
             
-            attr_reader(:type, :target_dir, :taken, :consumed)
+            attr_reader(:type, :target_dir, :taken_pid, :consumed_pids)
             
             def to_action(game, actor)
               params = {
                 :type => @type,
                 :actor => actor,
-                :pai => @taken,
-                :consumed => @consumed,
+                :pai => pid_to_pai(@taken_pid),
+                :consumed => @consumed_pids.map(){ |pid| pid_to_pai(pid) },
               }
               if ![:ankan, :kakan].include?(@type)
                 params[:target] = game.players[(actor.id + @target_dir) % 4]
@@ -208,13 +238,13 @@ module Mjai
               pai_type = seq_kind / 7
               first_number = seq_kind % 7 + 1
               @type = :chi
-              @consumed = []
+              @consumed_pids = []
               for i in 0...3
-                pai = get_pai(pai_type, first_number + i, cids[i])
+                pid = compose_pid(pai_type, first_number + i, cids[i])
                 if i == taken_pos
-                  @taken = pai
+                  @taken_pid = pid
                 else
-                  @consumed.push(pai)
+                  @consumed_pids.push(pid)
                 end
               end
             end
@@ -229,15 +259,15 @@ module Mjai
               pai_type = pai_kind / 9
               pai_number = pai_kind % 9 + 1
               @type = :pon
-              @consumed = []
+              @consumed_pids = []
               j = 0
               for i in 0...4
                 next if i == unused_cid
-                pai = get_pai(pai_type, pai_number, i)
+                pid = compose_pid(pai_type, pai_number, i)
                 if j == taken_pos
-                  @taken = pai
+                  @taken_pid = pid
                 else
-                  @consumed.push(pai)
+                  @consumed_pids.push(pid)
                 end
                 j += 1
               end
@@ -248,13 +278,13 @@ module Mjai
               pid = read_bits(8)
               (pai_type, pai_number, key_cid) = decompose_pid(pid)
               @type = @target_dir == 0 ? :ankan : :daiminkan
-              @consumed = []
+              @consumed_pids = []
               for i in 0...4
-                pai = get_pai(pai_type, pai_number, i)
+                pid = compose_pid(pai_type, pai_number, i)
                 if i == key_cid && @type != :ankan
-                  @taken = pai
+                  @taken_pid = pid
                 else
-                  @consumed.push(pai)
+                  @consumed_pids.push(pid)
                 end
               end
             end
@@ -269,13 +299,13 @@ module Mjai
               pai_number = pai_kind % 9 + 1
               @type = :kakan
               @target_dir = 0
-              @consumed = []
+              @consumed_pids = []
               for i in 0...4
-                pai = get_pai(pai_type, pai_number, i)
+                pid = compose_pid(pai_type, pai_number, i)
                 if i == taken_cid
-                  @taken = pai
+                  @taken_pid = pid
                 else
-                  @consumed.push(pai)
+                  @consumed_pids.push(pid)
                 end
               end
             end

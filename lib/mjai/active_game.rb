@@ -61,9 +61,11 @@ module Mjai
               responses = do_action(action)
               case action.type
                 when :daiminkan, :kakan, :ankan
+                  # Actually takes one from wanpai and moves one pai from pipai to wanpai,
+                  # but it's equivalent to taking from pipai.
                   actions =
-                    [Action.new({:type => :tsumo, :actor => action.actor, :pai => @wanpais.pop()})]
-                  # TODO 王牌の補充、ドラの追加
+                    [Action.new({:type => :tsumo, :actor => action.actor, :pai => @pipais.pop()})]
+                  # TODO Add dora.
                   next
                 when :reach
                   reach = true
@@ -73,6 +75,13 @@ module Mjai
                 do_action(Action.new({:type => :reach_accepted, :actor => tsumo_actor}))
               end
             end
+          end
+        end
+        
+        def update_state(action)
+          super(action)
+          if action.type == :tsumo && @pipais.size != self.num_pipais
+            raise("num pipais mismatch: %p != %p" % [@pipais.size, self.num_pipais])
           end
         end
         

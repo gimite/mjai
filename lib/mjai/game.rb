@@ -157,6 +157,14 @@ module Mjai
               valid = !response
             end
             raise("bad response %p for %p" % [response, action]) if !valid
+            if response
+              case response.type
+                when :dahai
+                  if !@players[i].possible_dahais.include?(response.pai)
+                    raise("dahai not allowed: %p" % response)
+                  end
+              end
+            end
           end
         end
         
