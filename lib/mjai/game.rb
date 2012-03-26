@@ -12,6 +12,7 @@ module Mjai
           for player in @players
             player.game = self
           end
+          @chicha = nil
           @bakaze = nil
           @oya = nil
           @dora_markers = nil
@@ -72,12 +73,14 @@ module Mjai
               end
               @all_pais = pais.flatten().sort()
             when :start_kyoku
-              if action.oya == @oya  # 連荘
+              if !@chicha
+                @chicha = action.oya
+                @bakaze = Pai.new("E")
+                @honba = 0
+              elsif action.oya == @oya  # 連荘
                 @honba += 1
               else
-                if action.oya.id == 0
-                  @bakaze = @bakaze ? @bakaze.succ : Pai.new("E")
-                end
+                @bakaze = @bakaze.succ if action.oya == @chicha
                 @honba = 0
               end
               @oya = action.oya
@@ -179,8 +182,9 @@ module Mjai
         
         def render_board()
           result = ""
-          if @bakaze && @honba && @oya
-            result << ("%s-%d kyoku %d honba  " % [@bakaze, @oya.id + 1, @honba])
+          if @chicha && @bakaze && @honba && @oya
+            kyoku_num = (4 + @oya.id - @chicha.id) % 4 + 1
+            result << ("%s-%d kyoku %d honba  " % [@bakaze, kyoku_num, @honba])
           end
           result << ("pipai: %d  " % self.num_pipais) if self.num_pipais
           result << ("dora_marker: %s  " % @dora_markers.join(" ")) if @dora_markers
