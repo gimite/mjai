@@ -44,6 +44,15 @@ module Mjai
             action = Action.new(action)
           end
           
+          if action.type != :log
+            for player in @players
+              if !player.log_text.empty?
+                do_action({:type => :log, :actor => player, :text => player.log_text})
+                player.clear_log()
+              end
+            end
+          end
+          
           update_state(action)
           
           @on_action.call(action) if @on_action
@@ -153,6 +162,8 @@ module Mjai
                   else
                     valid = !response || response.type == :hora
                   end
+                when :log
+                  valid = !response
                 else
                   raise("unknown action type: #{action.type}")
               end

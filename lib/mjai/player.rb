@@ -8,6 +8,10 @@ module Mjai
     
     class Player
         
+        def initialize()
+          @log_text = ""
+        end
+        
         attr_reader(:id)
         attr_reader(:tehais)  # 手牌
         attr_reader(:furos)  # 副露
@@ -17,6 +21,7 @@ module Mjai
         attr_reader(:reach_state)
         attr_reader(:reach_ho_index)
         attr_reader(:attributes)
+        attr_reader(:log_text)
         attr_accessor(:name)
         attr_accessor(:game)
         attr_accessor(:points)
@@ -260,6 +265,15 @@ module Mjai
         
         def create_action(params = {})
           return Action.new({:actor => self}.merge(params))
+        end
+        
+        def log(text)
+          @log_text << text
+          print(text)
+        end
+        
+        def clear_log()
+          @log_text = ""
         end
         
         def inspect

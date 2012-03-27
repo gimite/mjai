@@ -24,6 +24,7 @@ module Mjai
               furos = params[:furos]
               sutehai_cands = params[:sutehai_cands]
               score_type = params[:score_type]
+              @player = params[:player]
               
               tehais = current_shanten_analysis.pais
               scene = hora_prob_estimator.get_scene({
@@ -66,7 +67,7 @@ module Mjai
                     raise("unknown score_type")
                 end
                 if eval.prob_info.progress_prob > 0.0
-                  puts("%s: ept=%d ppr=%.3f hpr=%.3f apt=%d (%s)" % [
+                  log("%s: ept=%d ppr=%.3f hpr=%.3f apt=%d (%s)\n" % [
                       pai,
                       eval.expected_points,
                       eval.prob_info.progress_prob,
@@ -85,6 +86,14 @@ module Mjai
             end
             
             attr_reader(:best_dahais, :best_dahai, :evals)
+            
+            def log(text)
+              if @player
+                @player.log(text)
+              else
+                print(text)
+              end
+            end
             
         end
         
@@ -123,7 +132,7 @@ module Mjai
                 elsif self.reach?
                   return create_action({:type => :dahai, :pai => action.pai})
                 end
-                p [:shanten, current_shanten]
+                #p [:shanten, current_shanten]
                 
                 if current_shanten == 0
                   sutehai_cands = self.possible_dahais
@@ -135,7 +144,7 @@ module Mjai
                   has_reacher = false
                   for player in self.game.players
                     if player != self && player.reach?
-                      p [:reacher, player, @prereach_sutehais_map[player]]
+                      #p [:reacher, player, @prereach_sutehais_map[player]]
                       has_reacher = true
                       scene = DangerEstimator::Scene.new(
                           self.game, self, nil, player, @prereach_sutehais_map[player])
@@ -145,27 +154,26 @@ module Mjai
                         else
                           safe_prob = 1.0 - @danger_tree.estimate_prob(scene, pai)
                         end
-                        p [:safe_prob, pai, safe_prob]
                         safe_probs[pai] *= safe_prob
                       end
+                    end
+                  end
+                  if has_reacher
+                    for pai, safe_prob in safe_probs
+                      log("%s: safe_prob=%.3f\n" % [pai, safe_prob])
                     end
                   end
                   max_safe_prob = safe_probs.values.max
                   sutehai_cands = safe_probs.keys.select(){ |pai| safe_probs[pai] == max_safe_prob }
                 end
-                p [:sutehai_cands, sutehai_cands]
+                #p [:sutehai_cands, sutehai_cands]
                 
                 scene = get_scene({
                     :current_shanten_analysis => current_shanten_analysis,
                     :sutehai_cands => sutehai_cands,
                 })
                 
-                p [:dahai, scene.best_dahai]
-                #if self.id == 0
-                #if has_reacher
-                #  print("> ")
-                #  gets()
-                #end
+                #p [:dahai, scene.best_dahai]
                 
                 return create_action({
                     :type => :dahai,
@@ -254,6 +262,7 @@ module Mjai
             :num_remain_turns => self.game.num_pipais / 4,
             :furos => self.furos,
             :score_type => @score_type,
+            :player => self,
           }
           params = default_params.merge(params)
           # pp params.reject(){ |k, v| [:visible_set, :hora_prob_estimator, :context].include?(k) }

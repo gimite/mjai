@@ -23,6 +23,7 @@ module Mjai
           [:hora_points, :number],
           [:deltas, :numbers],
           [:player_points, :numbers],
+          [:text, :string],
         ])
         
     end
