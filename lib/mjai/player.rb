@@ -49,6 +49,13 @@ module Mjai
               @name = action.names[@id] if action.names
               @points = 25000
               @attributes = OpenStruct.new()
+              @tehais = nil
+              @furos = nil
+              @ho = nil
+              @sutehais = nil
+              @extra_anpais = nil
+              @reach_state = nil
+              @reach_ho_index = nil
             when :start_kyoku
               @tehais = []
               @furos = []

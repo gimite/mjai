@@ -16,7 +16,7 @@ module Mjai
         module Util
             
             def on_tenhou_event(elem, next_elem = nil)
-              verify_tenhou_tehais()
+              verify_tenhou_tehais() if @first_kyoku_started
               case elem.name
                 when "SHUFFLE", "GO", "BYE"
                   # BYE: log out
