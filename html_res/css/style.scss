@@ -1,0 +1,100 @@
+/* These sizes should be even numbers to get good rendering when they are rotated. */
+/* Original size: 33x59 */
+$pai-width: 16px;
+$pai-height: 30px;
+/* Original size: 44x49 */
+$laid-pai-width: 22px;
+$laid-pai-height: 26px;
+
+$ho-tehai-margin: $pai-height;
+$board-width: $pai-width * 25;
+$player-height: $pai-height * 4 + $ho-tehai-margin;
+
+.repeated {
+  display: none;
+}
+
+.pai {
+  width: $pai-width;
+  height: $pai-height;
+}
+
+.laid-pai {
+  width: $laid-pai-width;
+  height: $laid-pai-height;
+}
+
+.board {
+  background-color: green;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: $board-width;
+  height: $board-width;
+}
+
+.player {
+  /* border: 1px black solid; */
+  width: $board-width;
+  position: absolute;
+}
+
+.player-0 {
+  left: 0px;
+  top: $board-width - $player-height;
+  -webkit-transform: rotate(0deg);
+}
+
+.player-1 {
+  left: ($board-width - $player-height / 2) - $board-width / 2;
+  top: $board-width / 2 - $player-height / 2;
+  -webkit-transform: rotate(270deg);
+}
+
+.player-2 {
+  left: 0px;
+  top: 0px;
+  -webkit-transform: rotate(180deg);
+}
+
+.player-3 {
+  left: $player-height / 2 - $board-width / 2;
+  top: $board-width / 2 - $player-height / 2;
+  -webkit-transform: rotate(90deg);
+}
+
+.ho {
+  margin-left: ($board-width - $pai-width * 6) / 2;
+  margin-bottom: $ho-tehai-margin;
+}
+
+.furo-container {
+  float: right;
+}
+
+.tehai-container {
+  margin-left: ($board-width - $pai-width * 14) / 2;
+  float: left;
+}
+
+.tsumo-pai {
+  margin-left: $pai-width / 4;
+}
+
+.player-footer {
+  clear: both;
+}
+
+.pai-row {
+  height: $pai-height;
+}
+
+.tehai-container {
+}
+
+.controller-container {
+  position: absolute;
+  left: $board-width;
+  top: 0px;
+  padding: 8px;
+}

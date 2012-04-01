@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8"> 
+  <title>Mahjong Archive Player</title>
+  <link rel="stylesheet" type="text/css" href="<%=h base_name %>.files/css/style.css">
+  <script src="<%=h base_name %>.files/js/jquery-1.7.2.min.js"></script>
+  <script src="<%=h base_name %>.files/js/dytem.js"></script>
+  <script>
+    allActions = <%= actions_json %>;
+    resourceDir = "<%=h base_name %>.files";
+  </script>
+  <script src="<%=h base_name %>.files/js/archive_player.js"></script>
+</head><body>
+  
+  <div class="board">
+    <div id="players" class="repeated player">
+      <div class="ho">
+        <div id="players.hoRows" class="repeated pai-row">
+          <img id="players.hoRows.pais" class="repeated">
+        </div>
+      </div>
+      <div class="tehai-container pai-row">
+        <img id="players.tehais" class="repeated">
+        <img id="players.tsumoPai" class="tsumo-pai">
+      </div>
+      <div class="furo-container pai-row">
+        <span id="players.furos" class="repeated">
+          <img id="players.furos.taken" class="laid-pai"><!--
+          --><img id="players.furos.consumed" class="repeated">
+        </span>
+      </div>
+      <div class="player-footer"></div>
+    </div>
+  </div>
+  
+  <div class="controller-container">
+    <div>
+      <button id="prev-button">Prev</button>
+      <button id="next-button">Next</button>
+      <input id="action-id-label" type="text" size="3">
+      <button id="go-button">Go</button>
+    </div>
+    <div id="action-label"></div>
+  </div>
+  
+</body></html>
