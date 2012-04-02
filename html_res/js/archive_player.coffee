@@ -48,11 +48,14 @@ sortPais = (pais) ->
 
 paiToImageUrl = (pai, pose) ->
   if pai
-    parsedPai = parsePai(pai)
-    if parsedPai.type == "t"
-      name = TSUPAI_IMAGE_MAP[pai]
+    if pai == "?"
+      name = "bk"
     else
-      name = "#{parsedPai.type}s#{parsedPai.number}"
+      parsedPai = parsePai(pai)
+      if parsedPai.type == "t"
+        name = TSUPAI_IMAGE_MAP[pai]
+      else
+        name = "#{parsedPai.type}s#{parsedPai.number}"
     if pose == undefined
       pose = 1
     return window.resourceDir + "/images/p_#{name}_#{pose}.gif"
@@ -60,13 +63,17 @@ paiToImageUrl = (pai, pose) ->
     return window.resourceDir + "/images/blank.png"
 
 cloneBoard = (board) ->
-  newBoard =
-    players: []
-  for player in board.players
-    newPlayer = {}
-    for key, value of player
-      newPlayer[key] = value
-    newBoard.players.push(newPlayer)
+  newBoard = {}
+  for bk, bv of board
+    if bk == "players"
+      newBoard[bk] = []
+      for player in bv
+        newPlayer = {}
+        for pk, pv of player
+          newPlayer[pk] = pv
+        newBoard[bk].push(newPlayer)
+    else
+      newBoard[bk] = bv
   return newBoard
 
 initPlayers = (board) ->
@@ -103,6 +110,7 @@ loadAction = (action) ->
     when "start_kyoku"
       kyoku =
         actions: []
+        doraMarkers: [action.dora_marker]
       kyokus.push(kyoku)
       board =
         players: [{}, {}, {}, {}]
@@ -133,6 +141,8 @@ loadAction = (action) ->
       ])
     when "hora", "ryukyoku"
       null
+    when "dora"
+      board.doraMarkers = board.doraMarkers.concat([action.dora_marker])
     when "log"
       if kyoku
         kyoku.actions[kyoku.actions.length - 1].log = action.text
@@ -206,6 +216,7 @@ renderAction = (action) ->
   actorStr = if action.actor == undefined then "" else action.actor
   $("#action-label").text("#{action.type} #{actorStr}")
   #dumpBoard(action.board)
+  kyoku = getCurrentKyoku()
   for i in [0...4]
     player = action.board.players[i]
     view = Dytem.players.at(i)
@@ -232,6 +243,10 @@ renderAction = (action) ->
         renderPai(furo.taken, furoView.taken, 3) if furo.taken
         renderPais(furo.consumed, furoView.consumed)
         --j
+  wanpais = ["?", "?", "?", "?", "?", "?"]
+  for i in [0...kyoku.doraMarkers.length]
+    wanpais[i + 2] = kyoku.doraMarkers[i]
+  renderPais(wanpais, Dytem.wanpais)
 
 getCurrentKyoku = ->
   return kyokus[currentKyokuId]

@@ -63,6 +63,12 @@ $player-height: $pai-height * 4 + $ho-tehai-margin;
   -webkit-transform: rotate(90deg);
 }
 
+.wanpais-container {
+  position: absolute;
+  left: $board-width / 2 - $pai-width * 6 / 2;
+  top: $board-width / 2 - $pai-height / 2;
+}
+
 .ho {
   margin-left: ($board-width - $pai-width * 6) / 2;
   margin-bottom: $ho-tehai-margin;
