@@ -13,10 +13,8 @@ TSUPAI_IMAGE_MAP =
   "F": "ji_h"
   "C": "ji_c"
 
-currentBoard =
-  players: [{}, {}, {}, {}]
-playerViews = [{}, {}, {}, {}]
-loadedActions = []
+kyokus = []
+currentKyokuId = 0
 currentActionId = 0
 
 parsePai = (pai) ->
@@ -81,24 +79,34 @@ initPlayers = (board) ->
 
 loadAction = (action) ->
   
-  console.log(action.type, action)
-  currentBoard = cloneBoard(currentBoard)
-  if "actor" of action
-    actorPlayer = currentBoard.players[action.actor]
+  #console.log(action.type, action)
+  if kyokus.length > 0
+    kyoku = kyokus[kyokus.length - 1]
+    board = cloneBoard(kyoku.actions[kyoku.actions.length - 1].board)
+  else
+    kyoku = null
+    board = null
+  if board && ("actor" of action)
+    actorPlayer = board.players[action.actor]
   else
     actorPlayer = null
-  if "target" of action
-    targetPlayer = currentBoard.players[action.target]
+  if board && ("target" of action)
+    targetPlayer = board.players[action.target]
   else
     targetPlayer = null
   
   switch action.type
     when "start_game"
-      initPlayers(currentBoard)
+      null
     when "end_game"
       null
     when "start_kyoku"
-      initPlayers(currentBoard)
+      kyoku =
+        actions: []
+      kyokus.push(kyoku)
+      board =
+        players: [{}, {}, {}, {}]
+      initPlayers(board)
     when "end_kyoku"
       null
     when "haipai"
@@ -113,7 +121,7 @@ loadAction = (action) ->
       actorPlayer.reachHoIndex = actorPlayer.ho.length
     when "reach_accepted"
       actorPlayer.reach = true
-    when "chi", "pon"
+    when "chi", "pon", "daiminkan"
       targetPlayer.ho = targetPlayer.ho[0...(targetPlayer.ho.length - 1)]
       for pai in action.consumed
         deleteTehai(actorPlayer, pai)
@@ -126,19 +134,19 @@ loadAction = (action) ->
     when "hora", "ryukyoku"
       null
     when "log"
-      if loadedActions.length > 0
-        loadedActions[loadedActions.length - 1].log = action.text
+      if kyoku
+        kyoku.actions[kyoku.actions.length - 1].log = action.text
     else
       throw "unknown action: #{action.type}"
   
-  for i in [0...4]
-    if i != action.actor
-      ripai(currentBoard.players[i])
-  
-  if action.type != "log"
-    action.board = currentBoard
-    #dumpBoard(currentBoard)
-    loadedActions.push(action)
+  if kyoku
+    for i in [0...4]
+      if i != action.actor
+        ripai(board.players[i])
+    if action.type != "log"
+      action.board = board
+      #dumpBoard(board)
+      kyoku.actions.push(action)
 
 deleteTehai = (player, pai) ->
   player.tehais = player.tehais.concat([])
@@ -194,10 +202,10 @@ renderHo = (player, offset, pais, view) ->
     renderPai(pais[i], view.append(), if i == reachIndex then 3 else 1)
 
 renderAction = (action) ->
-  console.log(action.type, action)
+  #console.log(action.type, action)
   actorStr = if action.actor == undefined then "" else action.actor
   $("#action-label").text("#{action.type} #{actorStr}")
-  dumpBoard(action.board)
+  #dumpBoard(action.board)
   for i in [0...4]
     player = action.board.players[i]
     view = Dytem.players.at(i)
@@ -225,23 +233,44 @@ renderAction = (action) ->
         renderPais(furo.consumed, furoView.consumed)
         --j
 
+getCurrentKyoku = ->
+  return kyokus[currentKyokuId]
+
+renderCurrentAction = ->
+  renderAction(getCurrentKyoku().actions[currentActionId])
+
+goNext = ->
+  return if currentActionId == getCurrentKyoku().actions.length - 1
+  ++currentActionId
+  $("#action-id-label").val(currentActionId)
+  renderCurrentAction()
+
+goBack = ->
+  return if currentActionId == 0
+  --currentActionId
+  $("#action-id-label").val(currentActionId)
+  renderCurrentAction()
+
 $ ->
   
-  $("#prev-button").click ->
-    return if currentActionId == 0
-    --currentActionId
-    $("#action-id-label").val(currentActionId)
-    renderAction(loadedActions[currentActionId])
+  $(window).bind "mousewheel", (e) ->
+    e.preventDefault()
+    if e.originalEvent.wheelDelta < 0
+      goNext()
+    else if e.originalEvent.wheelDelta > 0
+      goBack()
   
-  $("#next-button").click ->
-    return if currentActionId == loadedActions.length - 1
-    ++currentActionId
-    $("#action-id-label").val(currentActionId)
-    renderAction(loadedActions[currentActionId])
+  $("#prev-button").click(goBack)
+  $("#next-button").click(goNext)
   
   $("#go-button").click ->
     currentActionId = parseInt($("#action-id-label").val())
-    renderAction(loadedActions[currentActionId])
+    renderCurrentAction()
+  
+  $("#kyokuSelector").change ->
+    currentKyokuId = parseInt($("#kyokuSelector").val())
+    currentActionId = 0
+    renderCurrentAction()
   
   Dytem.init()
   for i in [0...4]
@@ -252,7 +281,9 @@ $ ->
 
   for action in allActions
     loadAction(action)
+  for i in [0...kyokus.length]
+    $("#kyokuSelector").get(0).options[i] = new Option(i, i)
   console.log("loaded")
   
   #currentActionId = 78
-  renderAction(loadedActions[currentActionId])
+  renderCurrentAction()
