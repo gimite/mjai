@@ -161,6 +161,8 @@ loadAction = (action) ->
 deleteTehai = (player, pai) ->
   player.tehais = player.tehais.concat([])
   idx = player.tehais.lastIndexOf(pai)
+  if idx < 0
+    idx = player.tehais.lastIndexOf("?")
   throw "pai not in tehai" if idx < 0
   player.tehais[idx] = null
 
