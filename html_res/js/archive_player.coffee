@@ -223,11 +223,12 @@ renderPai = (pai, view, pose) ->
     else
       throw("unknown pose")
 
-renderPais = (pais, view) ->
+renderPais = (pais, view, poses) ->
+  pais ||= []
+  poses ||= []
   view.clear()
-  if pais
-    for pai in pais
-      renderPai(pai, view.append())
+  for i in [0...pais.length]
+    renderPai(pais[i], view.append(), poses[i])
 
 renderHo = (player, offset, pais, view) ->
   if player.reachHoIndex == null
@@ -267,16 +268,20 @@ renderAction = (action) ->
       while j >= 0
         furo = player.furos[j]
         furoView = view.furos.append()
-        if furo.taken
-          renderPai(furo.taken, furoView.taken, 3)
-          furoView.taken.show()
-        else
-          furoView.taken.hide()
         if furo.type == "ankan"
-          consumed = ["?"].concat(furo.consumed[0...2]).concat(["?"])
+          pais = ["?"].concat(furo.consumed[0...2]).concat(["?"])
+          poses = [1, 1, 1, 1]
         else
-          consumed = furo.consumed
-        renderPais(consumed, furoView.consumed)
+          dir = (4 + furo.target - i) % 4
+          if furo.type in ["daiminkan", "kakan"]
+            laidPos = [null, 3, 1, 0][dir]
+          else
+            laidPos = [null, 2, 1, 0][dir]
+          pais = furo.consumed.concat([])
+          poses = [1, 1, 1]
+          pais[laidPos...laidPos] = [furo.taken]
+          poses[laidPos...laidPos] = [3]
+        renderPais(pais, furoView.pais, poses)
         --j
   wanpais = ["?", "?", "?", "?", "?", "?"]
   for i in [0...kyoku.doraMarkers.length]
