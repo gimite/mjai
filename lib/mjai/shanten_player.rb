@@ -8,6 +8,7 @@ module Mjai
     class ShantenPlayer < Player
         
         def initialize(params)
+          super()
           @use_furo = params[:use_furo]
         end
         
@@ -37,7 +38,7 @@ module Mjai
                   return create_action({:type => :dahai, :pai => action.pai})
                 end
                 
-                if action.type == :tsumo
+                if action.type == :tsumo && self.game.num_pipais > 0
                   for pai in self.tehais
                     if self.tehais.select(){ |tp| tp == pai }.size >= 4
                       #@game.last = true
@@ -84,35 +85,9 @@ module Mjai
                     })
                   end
                 elsif @use_furo
-                  if self.tehais.select(){ |pai| pai == action.pai }.size >= 3
-                    #@game.last = true
-                    return create_action({
-                      :type => :daiminkan,
-                      :pai => action.pai,
-                      :consumed => [action.pai] * 3,
-                      :target => action.actor
-                    })
-                  elsif self.tehais.select(){ |pai| pai == action.pai }.size >= 2
-                    return create_action({
-                      :type => :pon,
-                      :pai => action.pai,
-                      :consumed => [action.pai] * 2,
-                      :target => action.actor
-                    })
-                  elsif (action.actor.id + 1) % 4 == self.id && action.pai.type != "t"
-                    for i in 0...3
-                      consumed = (((-i)...(-i + 3)).to_a() - [0]).map() do |j|
-                        Pai.new(action.pai.type, action.pai.number + j)
-                      end
-                      if consumed.all?(){ |pai| self.tehais.index(pai) }
-                        return create_action({
-                          :type => :chi,
-                          :pai => action.pai,
-                          :consumed => consumed,
-                          :target => action.actor,
-                        })
-                      end
-                    end
+                  furo_actions = self.possible_furo_actions
+                  if !furo_actions.empty?
+                    return furo_actions[0]
                   end
                 end
             end

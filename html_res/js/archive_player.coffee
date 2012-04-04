@@ -84,6 +84,13 @@ initPlayers = (board) ->
     player.reach = false
     player.reachHoIndex = null
 
+removeRed = (pai) ->
+  return null if !pai
+  if pai.match(/^(.+)r$/)
+    return RegExp.$1
+  else
+    return pai
+
 loadAction = (action) ->
   
   #console.log(action.type, action)
@@ -139,6 +146,24 @@ loadAction = (action) ->
           consumed: action.consumed
           target: action.target
       ])
+    when "ankan"
+      for pai in action.consumed
+        deleteTehai(actorPlayer, pai)
+      actorPlayer.furos = actorPlayer.furos.concat([
+          type: action.type
+          consumed: action.consumed
+      ])
+    when "kakan"
+      deleteTehai(actorPlayer, action.pai)
+      actorPlayer.furos = actorPlayer.furos.concat([])
+      furos = actorPlayer.furos
+      for i in [0...furos.length]
+        if furos[i].type == "pon" && removeRed(furos[i].taken) == removeRed(action.pai)
+          furos[i] =
+            type: "kakan"
+            taken: action.pai
+            consumed: action.consumed
+            target: furos[i].target
     when "hora", "ryukyoku"
       null
     when "dora"
@@ -242,8 +267,16 @@ renderAction = (action) ->
       while j >= 0
         furo = player.furos[j]
         furoView = view.furos.append()
-        renderPai(furo.taken, furoView.taken, 3) if furo.taken
-        renderPais(furo.consumed, furoView.consumed)
+        if furo.taken
+          renderPai(furo.taken, furoView.taken, 3)
+          furoView.taken.show()
+        else
+          furoView.taken.hide()
+        if furo.type == "ankan"
+          consumed = ["?"].concat(furo.consumed[0...2]).concat(["?"])
+        else
+          consumed = furo.consumed
+        renderPais(consumed, furoView.consumed)
         --j
   wanpais = ["?", "?", "?", "?", "?", "?"]
   for i in [0...kyoku.doraMarkers.length]
