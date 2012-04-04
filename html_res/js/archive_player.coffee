@@ -226,18 +226,18 @@ renderPai = (pai, view, pose) ->
 renderPais = (pais, view, poses) ->
   pais ||= []
   poses ||= []
-  view.clear()
+  view.resize(pais.length)
   for i in [0...pais.length]
-    renderPai(pais[i], view.append(), poses[i])
+    renderPai(pais[i], view.at(i), poses[i])
 
 renderHo = (player, offset, pais, view) ->
   if player.reachHoIndex == null
     reachIndex = null
   else
     reachIndex = player.reachHoIndex - offset
-  view.clear()
+  view.resize(pais.length)
   for i in [0...pais.length]
-    renderPai(pais[i], view.append(), if i == reachIndex then 3 else 1)
+    renderPai(pais[i], view.at(i), if i == reachIndex then 3 else 1)
 
 renderAction = (action) ->
   #console.log(action.type, action)
@@ -262,12 +262,12 @@ renderAction = (action) ->
     renderHo(player, 0, ho[0...6], view.hoRows.at(0).pais)
     renderHo(player, 6, ho[6...12], view.hoRows.at(1).pais)
     renderHo(player, 12, ho[12...], view.hoRows.at(2).pais)
-    view.furos.clear()
+    view.furos.resize(player.furos.length)
     if player.furos
       j = player.furos.length - 1
       while j >= 0
         furo = player.furos[j]
-        furoView = view.furos.append()
+        furoView = view.furos.at(player.furos.length - 1 - j)
         if furo.type == "ankan"
           pais = ["?"].concat(furo.consumed[0...2]).concat(["?"])
           poses = [1, 1, 1, 1]

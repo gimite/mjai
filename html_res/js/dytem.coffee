@@ -68,6 +68,15 @@ class Repeated
   size: ->
     return @__elems.length
   
+  resize: (n) ->
+    if n < @__elems.length
+      for elem in @__elems[n...]
+        elem.remove()
+      @__elems[n...] = []
+    else if n > @__elems.length
+      for i in [@__elems.length...n]
+        @append()
+  
   clear: ->
     for elem in @__elems
       elem.remove()

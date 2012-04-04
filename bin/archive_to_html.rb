@@ -9,6 +9,9 @@ include(ERB::Util)
 if !system("coffee -cb html_res/js/archive_player.coffee")
   exit(1)
 end
+if !system("coffee -cb html_res/js/dytem.coffee")
+  exit(1)
+end
 if !system("sass html_res/css/style.scss html_res/css/style.css")
   exit(1)
 end
