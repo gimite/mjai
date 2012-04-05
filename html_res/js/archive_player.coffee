@@ -50,15 +50,18 @@ paiToImageUrl = (pai, pose) ->
   if pai
     if pai == "?"
       name = "bk"
+      ext = "gif"
     else
       parsedPai = parsePai(pai)
       if parsedPai.type == "t"
         name = TSUPAI_IMAGE_MAP[pai]
       else
-        name = "#{parsedPai.type}s#{parsedPai.number}"
+        redSuffix = if parsedPai.red then "r" else ""
+        name = "#{parsedPai.type}s#{parsedPai.number}#{redSuffix}"
+      ext = if parsedPai.red then "png" else "gif"
     if pose == undefined
       pose = 1
-    return window.resourceDir + "/images/p_#{name}_#{pose}.gif"
+    return window.resourceDir + "/images/p_#{name}_#{pose}.#{ext}"
   else
     return window.resourceDir + "/images/blank.png"
 
