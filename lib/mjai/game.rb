@@ -7,11 +7,8 @@ module Mjai
     
     class Game
         
-        def initialize(players)
-          @players = players
-          for player in @players
-            player.game = self
-          end
+        def initialize(players = nil)
+          self.players = players if players
           @chicha = nil
           @bakaze = nil
           @oya = nil
@@ -32,6 +29,13 @@ module Mjai
         attr_reader(:all_pais)
         attr_reader(:num_pipais)
         attr_accessor(:last)  # kari
+        
+        def players=(players)
+          @players = players
+          for player in @players
+            player.game = self
+          end
+        end
         
         def on_action(&block)
           @on_action = block
