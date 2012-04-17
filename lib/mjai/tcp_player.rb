@@ -1,3 +1,5 @@
+require "timeout"
+
 require "mjai/player"
 require "mjai/action"
 
@@ -14,8 +16,20 @@ module Mjai
         
         def respond_to_action(action)
           @socket.puts(action.to_json())
-          response = Action.from_json(@socket.gets().chomp(), self.game)
-          return response.type == :none ? nil : response
+          line = nil
+          Timeout.timeout(60) do
+            line = @socket.gets()
+          end
+          if line
+            response = Action.from_json(line.chomp(), self.game)
+            return response.type == :none ? nil : response
+          else
+            return nil
+          end
+        end
+        
+        def close()
+          @socket.close()
         end
         
     end

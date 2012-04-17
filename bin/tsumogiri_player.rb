@@ -11,7 +11,6 @@ end
 @socket.sync = true
 id = nil
 @socket.each_line() do |line|
-  ended = false
   $stderr.puts("< %s" % line.chomp())
   action = JSON.parse(line.chomp())
   if action["type"] == "hello"
@@ -20,13 +19,13 @@ id = nil
     id = action["id"]
     response = {"type" => "none"}
   elsif action["type"] == "end_game"
-    response = {"type" => "none"}
-    ended = true
+    break
   elsif action["type"] == "tsumo" && action["actor"] == id
     response = {"type" => "dahai", "actor" => id, "target" => id, "pai" => action["pai"]}
+  elsif action["type"] == "error"
+    break
   else
     response = {"type" => "none"}
   end
   send(response)
-  break if ended
 end

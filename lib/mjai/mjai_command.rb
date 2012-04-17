@@ -11,7 +11,7 @@ module Mjai
           Thread.abort_on_exception = true
           action = argv.shift()
           opts = OptionParser.getopts(argv, "",
-              "port:", "host:", "game_type:one_kyoku", "players:")
+              "port:", "host:", "game_type:one_kyoku", "players:", "repeat")
           case action
             when "server"
               raise("--port missing") if !opts["port"]
@@ -20,6 +20,7 @@ module Mjai
                   :port => opts["port"].to_i(),
                   :game_type => opts["game_type"].intern,
                   :player_specs => (opts["players"] || "").split(/,/),
+                  :repeat => opts["repeat"],
               })
               server.run()
             else
