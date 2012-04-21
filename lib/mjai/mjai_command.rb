@@ -10,41 +10,58 @@ module Mjai
     
     class MjaiCommand
         
-        def self.execute(argv)
+        def self.execute(command_name, argv)
+          
           Thread.abort_on_exception = true
-          action = argv.shift()
-          opts = OptionParser.getopts(argv, "",
-              "port:", "host:", "game_type:one_kyoku", "players:", "repeat", "name:")
-          case action
-            when "server"
-              raise("--port missing") if !opts["port"]
-              server = TCPGameServer.new({
-                  :host => opts["host"],
-                  :port => opts["port"].to_i(),
-                  :game_type => opts["game_type"].intern,
-                  :player_specs => (opts["players"] || "").split(/,/),
-                  :repeat => opts["repeat"],
-              })
-              server.run()
-            when "tsumogiri", "shanten"
+          case command_name
+            
+            when "mjai"
+              
+              action = argv.shift()
+              opts = OptionParser.getopts(argv, "",
+                  "port:11600", "host:127.0.0.1", "room:default", "game_type:one_kyoku",
+                  "repeat")
               case action
+                when "server"
+                  raise("--port missing") if !opts["port"]
+                  server = TCPGameServer.new({
+                      :host => opts["host"],
+                      :port => opts["port"].to_i(),
+                      :room => opts["room"],
+                      :game_type => opts["game_type"].intern,
+                      :player_commands => argv,
+                      :repeat => opts["repeat"],
+                  })
+                  server.run()
+                else
+                  raise("unknown action")
+              end
+              
+            when /^mjai-(.+)$/
+              
+              player_type = $1
+              case player_type
                 when "tsumogiri"
                   player = TsumogiriPlayer.new()
                 when "shanten"
                   player = Mjai::ShantenPlayer.new({:use_furo => false})
                 else
-                  raise("should not happen")
+                  raise("unknown action")
               end
+              opts = OptionParser.getopts(argv, "", "name:")
+              url = ARGV.shift()
               game = TCPClientGame.new({
                   :player => player,
-                  :host => opts["host"],
-                  :port => opts["port"].to_i(),
-                  :name => opts["name"],
+                  :url => url,
+                  :name => opts["name"] || player_type,
               })
               game.play()
+              
             else
-              raise("unknown action")
+              raise("should not happen")
+          
           end
+          
         end
         
     end

@@ -5,4 +5,4 @@ $LOAD_PATH.unshift(File.dirname(__FILE__) + "/../lib")
 require "mjai/mjai_command"
 
 
-Mjai::MjaiCommand.execute("mjai", ARGV)
+Mjai::MjaiCommand.execute("mjai-tsumogiri", ARGV)

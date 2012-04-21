@@ -1,5 +1,6 @@
 require "socket"
 require "json"
+require "uri"
 
 
 def send(response)
@@ -7,14 +8,15 @@ def send(response)
   @socket.puts(JSON.dump(response))
 end
 
-@socket = TCPSocket.new(ARGV[0], ARGV[1].to_i())
+uri = URI.parse(ARGV[0])
+@socket = TCPSocket.new(uri.host, uri.port)
 @socket.sync = true
 id = nil
 @socket.each_line() do |line|
   $stderr.puts("< %s" % line.chomp())
   action = JSON.parse(line.chomp())
   if action["type"] == "hello"
-    response = {"type" => "hello", "name" => "tsumogiri"}
+    response = {"type" => "join", "name" => "tsumogiri", "room" => uri.path.slice(/^\/(.*)$/, 1)}
   elsif action["type"] == "start_game"
     id = action["id"]
     response = {"type" => "none"}

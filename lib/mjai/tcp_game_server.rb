@@ -14,17 +14,15 @@ module Mjai
         
         def initialize(params)
           @params = params
-          if params[:host]
-            @server = TCPServer.open(params[:host], params[:port])
-          else
-            @server = TCPServer.open(params[:port])
-          end
+          @server = TCPServer.open(params[:host], params[:port])
           @players = []
           @mutex = Mutex.new()
         end
         
         def run()
-          puts("listening")
+          puts("Listening at host %s, port %d" % [@params[:host], @params[:port]])
+          puts("URL: %s" % self.server_url)
+          puts("Waiting for 4 players...")
           @pids = []
           begin
             start_default_players()
@@ -34,20 +32,25 @@ module Mjai
                 socket.puts(JSON.dump({"type" => "hello"}))
                 message = JSON.parse(socket.gets())
                 error = nil
-                if message["type"] == "hello" && message["name"]
-                  @mutex.synchronize() do
-                    if @players.size < 4
-                      @players.push(TCPPlayer.new(socket, message["name"]))
-                      puts("%s players" % @players.size)
-                      if @players.size == 4
-                        Thread.new(){ play_game() }
+                if message["type"] == "join" && message["name"] && message["room"]
+                  if message["room"] == @params[:room]
+                    @mutex.synchronize() do
+                      if @players.size < 4
+                        @players.push(TCPPlayer.new(socket, message["name"]))
+                        puts("Waiting for %s more players..." % (4 - @players.size))
+                        if @players.size == 4
+                          Thread.new(){ play_game() }
+                        end
+                      else
+                        error = "The room is busy. Retry after a while."
                       end
-                    else
-                      error = "The room is busy. Retry after a while."
                     end
+                  else
+                    error = "No such room. Available room: %s" % @params[:room]
                   end
                 else
-                  error = 'Expected e.g. {"type":"hello","name":"noname"}'
+                  error = "Expected e.g. %s" %
+                      JSON.dump({"type" => "join", "name" => "noname", "room" => @params[:room]})
                 end
                 if error
                   socket.puts(JSON.dump({"type" => "error", "message" => error}))
@@ -90,14 +93,13 @@ module Mjai
           end
         end
         
+        def server_url
+          return "mjsonp://localhost:%d/%s" % [@params[:port], @params[:room]]
+        end
+        
         def start_default_players()
-          for spec in @params[:player_specs]
-            case spec
-              when "tsumogiri"
-                command = "ruby bin/tsumogiri_player.rb localhost %d" % @params[:port]
-              else
-                raise("unknown spec")
-            end
+          for command in @params[:player_commands]
+            command += " " + self.server_url
             puts(command)
             @pids.push(spawn(command))
           end

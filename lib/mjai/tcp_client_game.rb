@@ -1,4 +1,5 @@
 require "socket"
+require "uri"
 
 require "rubygems"
 require "json"
@@ -18,7 +19,8 @@ module Mjai
         end
         
         def play()
-          TCPSocket.open(@params[:host], @params[:port]) do |socket|
+          uri = URI.parse(@params[:url])
+          TCPSocket.open(uri.host, uri.port) do |socket|
             socket.sync = true
             socket.each_line() do |line|
               puts("<-\t%s" % line.chomp())
@@ -26,7 +28,11 @@ module Mjai
               action_obj = JSON.parse(action_json)
               case action_obj["type"]
                 when "hello"
-                  response_json = JSON.dump({"type" => "hello", "name" => @params[:name]})
+                  response_json = JSON.dump({
+                      "type" => "join",
+                      "name" => @params[:name],
+                      "room" => uri.path.slice(/^\/(.*)$/, 1),
+                  })
                 when "error"
                   raise("Server error: %s" % action_json["message"])
                 else
