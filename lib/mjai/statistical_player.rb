@@ -130,7 +130,7 @@ module Mjai
                 elsif can_reach?(current_shanten_analysis)
                   return create_action({:type => :reach})
                 elsif self.reach?
-                  return create_action({:type => :dahai, :pai => action.pai})
+                  return create_action({:type => :dahai, :pai => action.pai, :tsumogiri => true})
                 end
                 #p [:shanten, current_shanten]
                 
@@ -175,6 +175,7 @@ module Mjai
                 
                 #p [:dahai, scene.best_dahai]
                 
+                tsumogiri = action.type == :tsumo && scene.best_dahai == self.tehais[-1]
                 return create_action({
                     :type => :dahai,
                     :pai => scene.best_dahai,

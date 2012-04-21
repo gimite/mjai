@@ -136,57 +136,89 @@ module Mjai
           for i in 0...4
             response = responses[i]
             raise("invalid actor") if response && response.actor != @players[i]
-            is_actor = @players[i] == action.actor
-            if expect_response_from?(@players[i])
-              case action.type
-                when :start_game, :start_kyoku, :haipai, :end_kyoku, :end_game,
-                    :hora, :ryukyoku, :dora, :reach_accepted
+            validate_response_type(response, @players[i], action)
+            validate_response_content(response) if response
+          end
+        end
+        
+        def validate_response_type(response, player, action)
+          is_actor = player == action.actor
+          if expect_response_from?(player)
+            case action.type
+              when :start_game, :start_kyoku, :haipai, :end_kyoku, :end_game,
+                  :hora, :ryukyoku, :dora, :reach_accepted
+                valid = !response
+              when :tsumo
+                if is_actor
+                  valid = response &&
+                      [:dahai, :reach, :ankan, :kakan, :hora].include?(response.type)
+                else
                   valid = !response
-                when :tsumo
-                  if is_actor
-                    valid = response &&
-                        [:dahai, :reach, :ankan, :kakan, :hora].include?(response.type)
-                  else
-                    valid = !response
-                  end
-                when :dahai
-                  if is_actor
-                    valid = !response
-                  else
-                    valid = !response || [:chi, :pon, :daiminkan, :hora].include?(response.type)
-                  end
-                when :chi, :pon, :reach
-                  if is_actor
-                    valid = response && response.type == :dahai
-                  else
-                    valid = !response
-                  end
-                when :ankan, :daiminkan
-                  # Actor should wait for tsumo.
-                  valid = !response
-                when :kakan
-                  if is_actor
-                    # Actor should wait for tsumo.
-                    valid = !response
-                  else
-                    valid = !response || response.type == :hora
-                  end
-                when :log
+                end
+              when :dahai
+                if is_actor
                   valid = !response
                 else
-                  raise("unknown action type: #{action.type}")
-              end
-            else
-              valid = !response
+                  valid = !response || [:chi, :pon, :daiminkan, :hora].include?(response.type)
+                end
+              when :chi, :pon, :reach
+                if is_actor
+                  valid = response && response.type == :dahai
+                else
+                  valid = !response
+                end
+              when :ankan, :daiminkan
+                # Actor should wait for tsumo.
+                valid = !response
+              when :kakan
+                if is_actor
+                  # Actor should wait for tsumo.
+                  valid = !response
+                else
+                  valid = !response || response.type == :hora
+                end
+              when :log
+                valid = !response
+              else
+                raise("unknown action type: #{action.type}")
             end
-            raise("bad response %p for %p" % [response, action]) if !valid
-            if response
-              case response.type
-                when :dahai
-                  if !@players[i].possible_dahais.include?(response.pai)
-                    raise("dahai not allowed: %p" % response)
-                  end
+          else
+            valid = !response
+          end
+          raise("bad response %p for %p" % [response, action]) if !valid
+        end
+        
+        def validate_response_content(response)
+          case response.type
+            when :dahai
+              assert_fields_exist(response, [:pai, :tsumogiri])
+              if !response.actor.possible_dahais.include?(response.pai)
+                raise("dahai not allowed: %p" % response)
               end
+              if response.actor.tehais.size % 3 == 2  # after tsumo
+                if response.tsumogiri
+                  tsumo_pai = response.actor.tehais[-1]
+                  if response.pai != tsumo_pai
+                    raise("tsumogiri is true but the pai is not tsumo pai: %s != %s" %
+                        [response.pai, tsumo_pai])
+                  end
+                else
+                  if !response.actor.tehais[0...-1].include?(response.pai)
+                    raise("tsumogiri is false but the pai is not in tehais")
+                  end
+                end
+              else  # after furo
+                if response.tsumogiri
+                  raise("tsumogiri must be false on dahai after furo")
+                end
+              end
+          end
+        end
+        
+        def assert_fields_exist(response, field_names)
+          for name in field_names
+            if !response.fields.has_key?(name)
+              raise("%s missing" % name)
             end
           end
         end

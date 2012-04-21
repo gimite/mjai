@@ -9,7 +9,7 @@ module Mjai
           case action.type
             when :tsumo, :chi, :pon
               if action.actor == self
-                return create_action({:type => :dahai, :pai => self.tehais[-1]})
+                return create_action({:type => :dahai, :pai => self.tehais[-1], :tsumogiri => true})
               end
           end
           return nil

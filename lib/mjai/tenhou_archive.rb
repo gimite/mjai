@@ -68,13 +68,22 @@ module Mjai
                       :pai => pid_to_pai(pid),
                   })
                 when /^([D-G])(\d+)?$/i
-                  player_id = ["D", "E", "F", "G"].index($1.upcase)
+                  prefix = $1
                   pid = $2
+                  player_id = ["D", "E", "F", "G"].index(prefix.upcase)
+                  if pid && pid == self.players[player_id].attributes.tenhou_tehai_pids[-1]
+                    tsumogiri = true
+                  elsif prefix != prefix.upcase
+                    tsumogiri = true
+                  else
+                    tsumogiri = false
+                  end
                   delete_tehai_by_pid(self.players[player_id], pid)
                   return do_action({
                       :type => :dahai,
                       :actor => self.players[player_id],
                       :pai => pid_to_pai(pid),
+                      :tsumogiri => tsumogiri,
                   })
                 when "REACH"
                   actor = self.players[elem["who"].to_i()]

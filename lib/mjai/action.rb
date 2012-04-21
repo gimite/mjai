@@ -13,6 +13,7 @@ module Mjai
           [:pai, :pai],
           [:consumed, :pais],
           [:pais, :pais],
+          [:tsumogiri, :boolean],
           [:id, :number],
           [:oya, :player],
           [:dora_marker, :pai],

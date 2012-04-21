@@ -24,7 +24,7 @@ module Mjai
                 current_shanten = current_shanten_analysis.shanten
                 if can_hora?(current_shanten_analysis)
                   if @use_furo
-                    return create_action({:type => :dahai, :pai => action.pai})
+                    return create_action({:type => :dahai, :pai => action.pai, :tsumogiri => true})
                   else
                     return create_action({
                         :type => :hora,
@@ -35,7 +35,7 @@ module Mjai
                 elsif can_reach?(current_shanten_analysis)
                   return create_action({:type => :reach})
                 elsif self.reach?
-                  return create_action({:type => :dahai, :pai => action.pai})
+                  return create_action({:type => :dahai, :pai => action.pai, :tsumogiri => true})
                 end
                 
                 if action.type == :tsumo && self.game.num_pipais > 0
@@ -66,7 +66,9 @@ module Mjai
                   sutehai_cands = self.possible_dahais
                 end
                 p [:sutehai_cands, sutehai_cands]
-                return create_action({:type => :dahai, :pai => sutehai_cands.sample})
+                sutehai = sutehai_cands.sample
+                tsumogiri = action.type == :tsumo && sutehai == self.tehais[-1]
+                return create_action({:type => :dahai, :pai => sutehai, :tsumogiri => tsumogiri})
                 
             end
             

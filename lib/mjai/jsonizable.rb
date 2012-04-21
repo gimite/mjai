@@ -21,7 +21,7 @@ module Mjai
           fields = {}
           for name, type in @@field_specs
             plain = hash[name.to_s()]
-            next if !plain
+            next if plain == nil
             case type
               when :symbol
                 obj = plain.intern()
@@ -35,7 +35,7 @@ module Mjai
                 obj = plain.map(){ |s| Pai.new(s) }
               when :pais_list
                 obj = plain.map(){ |o| o.map(){ |s| Pai.new(s) } }
-              when :number, :numbers, :string, :strings
+              when :number, :numbers, :string, :strings, :boolean, :booleans
                 obj = plain
               else
                 raise("unknown type")
@@ -60,7 +60,7 @@ module Mjai
           hash = {}
           for name, type in @@field_specs
             obj = @fields[name]
-            next if !obj
+            next if obj == nil
             case type
               when :symbol, :pai
                 plain = obj.to_s()
@@ -70,7 +70,7 @@ module Mjai
                 plain = obj.map(){ |a| a.to_s() }
               when :pais_list
                 plain = obj.map(){ |o| o.map(){ |a| a.to_s() } }
-              when :number, :numbers, :string, :strings
+              when :number, :numbers, :string, :strings, :boolean, :booleans
                 plain = obj
               else
                 raise("unknown type")
