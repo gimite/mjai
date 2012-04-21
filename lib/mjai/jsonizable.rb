@@ -33,6 +33,8 @@ module Mjai
                 obj = Pai.new(plain)
               when :pais
                 obj = plain.map(){ |s| Pai.new(s) }
+              when :pais_list
+                obj = plain.map(){ |o| o.map(){ |s| Pai.new(s) } }
               when :number, :numbers, :string, :strings
                 obj = plain
               else
@@ -66,6 +68,8 @@ module Mjai
                 plain = obj.id
               when :symbols, :pais
                 plain = obj.map(){ |a| a.to_s() }
+              when :pais_list
+                plain = obj.map(){ |o| o.map(){ |a| a.to_s() } }
               when :number, :numbers, :string, :strings
                 plain = obj
               else

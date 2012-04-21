@@ -57,7 +57,7 @@ module Mjai
               @reach_state = nil
               @reach_ho_index = nil
             when :start_kyoku
-              @tehais = []
+              @tehais = action.tehais[self.id]
               @furos = []
               @ho = []
               @sutehais = []
@@ -68,8 +68,6 @@ module Mjai
           
           if action.actor == self
             case action.type
-              when :haipai
-                @tehais = action.pais.sort()
               when :tsumo
                 @tehais.push(action.pai)
               when :dahai

@@ -15,12 +15,12 @@ module Mjai
         attr_accessor(:game_type)
         
         def play()
-          do_action(Action.new({:type => :start_game}))
+          do_action({:type => :start_game})
           @next_oya = @players[0]
           while !self.game_finished?
             play_kyoku()
           end
-          do_action(Action.new({:type => :end_game}))
+          do_action({:type => :end_game})
         end
         
         def play_kyoku()
@@ -29,12 +29,13 @@ module Mjai
             @pipais.shuffle!()
             @wanpais = @pipais.pop(14)
             dora_marker = @wanpais.pop()
-            do_action(Action.new({:type => :start_kyoku, :oya => @next_oya, :dora_marker => dora_marker}))
-            #gets() # kari
-            for player in @players
-              do_action(Action.new(
-                  {:type => :haipai, :actor => player, :pais => @pipais.pop(13) }))
-            end
+            tehais = Array.new(4){ @pipais.pop(13).sort() }
+            do_action({
+                :type => :start_kyoku,
+                :oya => @next_oya,
+                :dora_marker => dora_marker,
+                :tehais => tehais,
+            })
             @actor = self.oya
             while !@pipais.empty?
               mota()
@@ -42,7 +43,7 @@ module Mjai
             end
             process_ryukyoku()
           end
-          do_action(Action.new({:type => :end_kyoku}))
+          do_action({:type => :end_kyoku})
         end
         
         # 摸打
@@ -74,11 +75,11 @@ module Mjai
               if reach && (actions.empty? || ![:dahai, :hora].include?(actions[0].type))
                 deltas = [0, 0, 0, 0]
                 deltas[tsumo_actor.id] = -1000
-                do_action(Action.new({
+                do_action({
                     :type => :reach_accepted,:actor => tsumo_actor,
                     :deltas => deltas,
                     :player_points => get_player_points(deltas),
-                }))
+                })
               end
             end
           end
@@ -139,7 +140,7 @@ module Mjai
               deltas[action.target.id] -= (hora.points + self.honba * 300)
             end
             # TODO 役をフィールドに追加
-            do_action(Action.new({
+            do_action({
               :type => action.type,
               :actor => action.actor,
               :target => action.target,
@@ -149,7 +150,7 @@ module Mjai
               :hora_points => hora.points,
               :deltas => deltas,
               :player_points => get_player_points(deltas),
-            }))
+            })
           end
           update_next_oya(actions.any?(){ |a| a.actor == self.oya })
         end
@@ -157,7 +158,7 @@ module Mjai
         def process_ryukyoku()
           tenpais = @players.map(){ |p| p.tenpai? }
           # TODO 点数計算
-          do_action(Action.new({:type => :ryukyoku, :reason => :fanpai}))
+          do_action({:type => :ryukyoku, :reason => :fanpai})
           update_next_oya(tenpais[self.oya.id])
         end
         

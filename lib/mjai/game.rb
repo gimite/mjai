@@ -116,9 +116,14 @@ module Mjai
           case action.type
             when :start_game
               return action.merge({:id => player_id})
-            when :haipai
-              pais = action.actor == player ? action.pais : [Pai::UNKNOWN] * action.pais.size
-              return action.merge({:pais => pais})
+            when :start_kyoku
+              tehais_list = action.tehais.dup()
+              for i in 0...4
+                if i != player_id
+                  tehais_list[i] = [Pai::UNKNOWN] * tehais_list[i].size
+                end
+              end
+              return action.merge({:tehais => tehais_list})
             when :tsumo
               pai = action.actor == player ? action.pai : Pai::UNKNOWN
               return action.merge({:pai => pai})

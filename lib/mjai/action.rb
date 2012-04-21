@@ -16,6 +16,7 @@ module Mjai
           [:id, :number],
           [:oya, :player],
           [:dora_marker, :pai],
+          [:tehais, :pais_list],
           [:uri, :string],
           [:names, :strings],
           [:fu, :number],

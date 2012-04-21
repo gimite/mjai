@@ -40,23 +40,23 @@ module Mjai
                     do_action({:type => :end_kyoku})
                   end
                   @first_kyoku_started = true
+                  tehais_list = []
+                  for i in 0...4
+                    if i == 0
+                      hai_str = elem["hai"] || elem["hai0"]
+                    else
+                      hai_str = elem["hai%d" % i]
+                    end
+                    pids = hai_str ? hai_str.split(/,/) : [nil] * 13
+                    self.players[i].attributes.tenhou_tehai_pids = pids
+                    tehais_list.push(pids.map(){ |s| pid_to_pai(s) })
+                  end
                   do_action({
                     :type => :start_kyoku,
                     :oya => self.players[oya],
                     :dora_marker => pid_to_pai(elem["seed"].split(/,/)[5]),
+                    :tehais => tehais_list,
                   })
-                  for i in 0...4
-                    player_id = (oya + i) % 4
-                    if player_id == 0
-                      hai_str = elem["hai"] || elem["hai0"]
-                    else
-                      hai_str = elem["hai%d" % player_id]
-                    end
-                    pids = hai_str ? hai_str.split(/,/) : [nil] * 13
-                    self.players[player_id].attributes.tenhou_tehai_pids = pids
-                    pais = pids.map(){ |s| pid_to_pai(s) }
-                    do_action({:type => :haipai, :actor => self.players[player_id], :pais => pais})
-                  end
                   return nil
                 when /^([T-W])(\d+)?$/i
                   player_id = ["T", "U", "V", "W"].index($1.upcase)

@@ -23,7 +23,7 @@ module Mjai
                   "repeat")
               case action
                 when "server"
-                  raise("--port missing") if !opts["port"]
+                  $stdout.sync = true
                   server = TCPGameServer.new({
                       :host => opts["host"],
                       :port => opts["port"].to_i(),
@@ -39,6 +39,7 @@ module Mjai
               
             when /^mjai-(.+)$/
               
+              $stdout.sync = true
               player_type = $1
               case player_type
                 when "tsumogiri"
