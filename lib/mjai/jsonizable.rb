@@ -35,6 +35,8 @@ module Mjai
                 obj = plain.map(){ |s| Pai.new(s) }
               when :pais_list
                 obj = plain.map(){ |o| o.map(){ |s| Pai.new(s) } }
+              when :yakus
+                obj = plain.map(){ |s, n| [s.intern(), n] }
               when :number, :numbers, :string, :strings, :boolean, :booleans
                 obj = plain
               else
@@ -70,6 +72,8 @@ module Mjai
                 plain = obj.map(){ |a| a.to_s() }
               when :pais_list
                 plain = obj.map(){ |o| o.map(){ |a| a.to_s() } }
+              when :yakus
+                plain = obj.map(){ |s, n| [s.to_s(), n] }
               when :number, :numbers, :string, :strings, :boolean, :booleans
                 plain = obj
               else

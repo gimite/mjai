@@ -113,8 +113,8 @@ module Mjai
             end
           end
           
-          if action.player_points
-            @points = action.player_points[self.id]
+          if action.scores
+            @points = action.scores[self.id]
           end
           
         end

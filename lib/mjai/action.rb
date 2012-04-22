@@ -17,14 +17,17 @@ module Mjai
           [:id, :number],
           [:oya, :player],
           [:dora_marker, :pai],
+          [:uradora_markers, :pais],
           [:tehais, :pais_list],
           [:uri, :string],
           [:names, :strings],
+          [:hora_tehais, :pais],
+          [:yakus, :yakus],
           [:fu, :number],
           [:fan, :number],
           [:hora_points, :number],
           [:deltas, :numbers],
-          [:player_points, :numbers],
+          [:scores, :numbers],
           [:text, :string],
         ])
         

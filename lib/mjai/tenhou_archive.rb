@@ -93,25 +93,37 @@ module Mjai
                     when "2"
                       deltas = [0, 0, 0, 0]
                       deltas[actor.id] = -1000
-                      player_points = elem["ten"].split(/,/).map(){ |s| s.to_i() * 100 }
+                      scores = elem["ten"].split(/,/).map(){ |s| s.to_i() * 100 }
                       return do_action({
                           :type => :reach_accepted,
                           :actor => actor,
                           :deltas => deltas,
-                          :player_points => player_points,
+                          :scores => scores,
                       })
                     else
                       raise("should not happen")
                   end
                 when "AGARI"
+                  puts(elem)  # kari
+                  tehais = (elem["hai"].split(/,/) - [elem["machi"]]).map(){ |pid| pid_to_pai(pid) }
                   points_params = get_points_params(elem["sc"])
+                  (fu, hora_points, _) = elem["ten"].split(/,/).map(&:to_i)
+                  fan = elem["yaku"].split(/,/).each_slice(2).map(){ |y, f| f.to_i() }.inject(0, :+)
+                  uradora_markers = (elem["doraHaiUra"] || "").
+                      split(/,/).map(){ |pid| pid_to_pai(pid) }
+                  # TODO Fill yaku field.
                   do_action({
                     :type => :hora,
                     :actor => self.players[elem["who"].to_i()],
                     :target => self.players[elem["fromWho"].to_i()],
                     :pai => pid_to_pai(elem["machi"]),
+                    :hora_tehais => tehais,
+                    :uradora_markers => uradora_markers,
+                    :fu => fu,
+                    :fan => fan,
+                    :hora_points => hora_points,
                     :deltas => points_params[:deltas],
-                    :player_points => points_params[:player_points],
+                    :scores => points_params[:scores],
                   })
                   if elem["owari"]
                     do_action({:type => :end_kyoku})
@@ -136,7 +148,7 @@ module Mjai
                       :type => :ryukyoku,
                       :reason => reason,
                       :deltas => points_params[:deltas],
-                      :player_points => points_params[:player_points],
+                      :scores => points_params[:scores],
                   })
                   if elem["owari"]
                     do_action({:type => :end_kyoku})
@@ -169,7 +181,7 @@ module Mjai
               sc_nums = sc_str.split(/,/).map(&:to_i)
               result = {}
               result[:deltas] = (0...4).map(){ |i| sc_nums[2 * i + 1] * 100 }
-              result[:player_points] =
+              result[:scores] =
                   (0...4).map(){ |i| sc_nums[2 * i] * 100 + result[:deltas][i] }
               return result
             end

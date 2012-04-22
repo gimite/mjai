@@ -78,7 +78,7 @@ module Mjai
                 do_action({
                     :type => :reach_accepted,:actor => tsumo_actor,
                     :deltas => deltas,
-                    :player_points => get_player_points(deltas),
+                    :scores => get_scores(deltas),
                 })
               end
             end
@@ -139,17 +139,18 @@ module Mjai
             else
               deltas[action.target.id] -= (hora.points + self.honba * 300)
             end
-            # TODO 役をフィールドに追加
             do_action({
               :type => action.type,
               :actor => action.actor,
               :target => action.target,
               :pai => action.pai,
+              :hora_tehais => tehais,
+              :yakus => hora.yakus,
               :fu => hora.fu,
               :fan => hora.fan,
               :hora_points => hora.points,
               :deltas => deltas,
-              :player_points => get_player_points(deltas),
+              :scores => get_scores(deltas),
             })
           end
           update_next_oya(actions.any?(){ |a| a.actor == self.oya })
@@ -190,7 +191,7 @@ module Mjai
           return true
         end
         
-        def get_player_points(deltas)
+        def get_scores(deltas)
           return (0...4).map(){ |i| self.players[i].points + deltas[i] }
         end
         
