@@ -20,7 +20,7 @@ module Mjai
               action = argv.shift()
               opts = OptionParser.getopts(argv, "",
                   "port:11600", "host:127.0.0.1", "room:default", "game_type:one_kyoku",
-                  "repeat")
+                  "repeat", "log_dir:")
               case action
                 when "server"
                   $stdout.sync = true
@@ -31,6 +31,7 @@ module Mjai
                       :game_type => opts["game_type"].intern,
                       :player_commands => argv,
                       :repeat => opts["repeat"],
+                      :log_dir => opts["log_dir"],
                   })
                   server.run()
                 else

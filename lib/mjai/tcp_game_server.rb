@@ -29,7 +29,11 @@ module Mjai
             while true
               Thread.new(@server.accept()) do |socket|
                 socket.sync = true
-                socket.puts(JSON.dump({"type" => "hello"}))
+                socket.puts(JSON.dump({
+                    "type" => "hello",
+                    "protocol" => "mjsonp",
+                    "protocol_version" => 1,
+                }))
                 message = JSON.parse(socket.gets())
                 error = nil
                 if message["type"] == "join" && message["name"] && message["room"]
@@ -71,13 +75,21 @@ module Mjai
         end
         
         def play_game()
-          @game = ActiveGame.new(@players)
-          @game.game_type = @params[:game_type]
-          @game.on_action() do |action|
-            @mjson_out.puts(action.to_json()) if @mjson_out
-            @game.dump_action(action)
+          if @params[:log_dir]
+            mjson_path = "%s/%s.mjson" % [@params[:log_dir], Time.now.strftime("%Y-%m-%d-%H%M%S")]
+          else
+            mjson_path = nil
           end
-          @game.play()
+          maybe_open(mjson_path, "w") do |mjson_out|
+            mjson_out.sync = true if mjson_out
+            @game = ActiveGame.new(@players)
+            @game.game_type = @params[:game_type]
+            @game.on_action() do |action|
+              mjson_out.puts(action.to_json()) if mjson_out
+              @game.dump_action(action)
+            end
+            @game.play()
+          end
           for player in @players
             player.close()
           end
@@ -102,6 +114,14 @@ module Mjai
             command += " " + self.server_url
             puts(command)
             @pids.push(spawn(command))
+          end
+        end
+        
+        def maybe_open(path, mode, &block)
+          if path
+            open(path, mode, &block)
+          else
+            yield(nil)
           end
         end
         

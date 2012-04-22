@@ -15,7 +15,7 @@ module Mjai
         attr_accessor(:game_type)
         
         def play()
-          do_action({:type => :start_game})
+          do_action({:type => :start_game, :names => self.players.map(){ |pl| pl.name }})
           @ag_oya = @chicha = @players[0]
           @ag_bakaze = Pai.new("E")
           @ag_honba = 0

@@ -4,7 +4,7 @@ window.console.error ||= ->
 
 TSUPAIS = [null, "E", "S", "W", "N", "P", "F", "C"]
 
-TSUPAI_IMAGE_MAP =
+TSUPAI_TO_IMAGE_NAME =
   "E": "ji_e"
   "S": "ji_s"
   "W": "ji_w"
@@ -13,9 +13,16 @@ TSUPAI_IMAGE_MAP =
   "F": "ji_h"
   "C": "ji_c"
 
+BAKAZE_TO_STR =
+  "E": "東"
+  "S": "南"
+  "W": "西"
+  "N": "北"
+
 kyokus = []
 currentKyokuId = 0
 currentActionId = 0
+playerInfos = [{}, {}, {}, {}]
 
 parsePai = (pai) ->
   if pai.match(/^([1-9])(.)(r)?$/)
@@ -54,7 +61,7 @@ paiToImageUrl = (pai, pose) ->
     else
       parsedPai = parsePai(pai)
       if parsedPai.type == "t"
-        name = TSUPAI_IMAGE_MAP[pai]
+        name = TSUPAI_TO_IMAGE_NAME[pai]
       else
         redSuffix = if parsedPai.red then "r" else ""
         name = "#{parsedPai.type}s#{parsedPai.number}#{redSuffix}"
@@ -114,22 +121,30 @@ loadAction = (action) ->
   
   switch action.type
     when "start_game"
-      null
+      for i in [0...4]
+        playerInfos[i].name = action.names[i]
     when "end_game"
       null
     when "start_kyoku"
       kyoku =
         actions: []
         doraMarkers: [action.dora_marker]
+        bakaze: action.bakaze
+        kyokuNum: action.kyoku
+        honba: action.honba
       kyokus.push(kyoku)
+      prevBoard = board
       board =
         players: [{}, {}, {}, {}]
       initPlayers(board)
+      for i in [0...4]
+        board.players[i].tehais = action.tehais[i]
+        if prevBoard
+          board.players[i].score = prevBoard.players[i].score
+        else
+          board.players[i].score = 25000
     when "end_kyoku"
       null
-    when "haipai"
-      actorPlayer.tehais = action.pais
-      sortPais(actorPlayer.tehais)
     when "tsumo"
       actorPlayer.tehais = actorPlayer.tehais.concat([action.pai])
     when "dahai"
@@ -176,6 +191,10 @@ loadAction = (action) ->
         kyoku.actions[kyoku.actions.length - 1].log = action.text
     else
       throw "unknown action: #{action.type}"
+  
+  if action.scores
+    for i in [0...4]
+      board.players[i].score = action.scores[i]
   
   if kyoku
     for i in [0...4]
@@ -244,13 +263,18 @@ renderHo = (player, offset, pais, view) ->
 
 renderAction = (action) ->
   #console.log(action.type, action)
-  actorStr = if action.actor == undefined then "" else action.actor
-  $("#action-label").text("#{action.type} #{actorStr}")
+  displayAction = {}
+  for k, v of action
+    if k != "board"
+      displayAction[k] = v
+  $("#action-label").text(JSON.stringify(displayAction))
   #dumpBoard(action.board)
   kyoku = getCurrentKyoku()
   for i in [0...4]
     player = action.board.players[i]
     view = Dytem.players.at(i)
+    infoView = Dytem.playerInfos.at(i)
+    infoView.score.text(player.score)
     if !player.tehais
       renderPais([], view.tehais)
       view.tsumoPai.hide()
@@ -330,17 +354,25 @@ $ ->
     currentActionId = 0
     renderCurrentAction()
   
+  for action in allActions
+    loadAction(action)
+
   Dytem.init()
   for i in [0...4]
     playerView = Dytem.players.append()
     playerView.addClass("player-#{i}")
     for j in [0...3]
       playerView.hoRows.append()
+    playerInfoView = Dytem.playerInfos.append()
+    playerInfoView.index.text(i)
+    playerInfoView.name.text(playerInfos[i].name)
 
-  for action in allActions
-    loadAction(action)
   for i in [0...kyokus.length]
-    $("#kyokuSelector").get(0).options[i] = new Option(i, i)
+    bakazeStr = BAKAZE_TO_STR[kyokus[i].bakaze]
+    honba = kyokus[i].honba
+    kyokuNum = kyokus[i].kyokuNum
+    label = "#{bakazeStr}#{kyokuNum}局 #{honba}本場"
+    $("#kyokuSelector").get(0).options[i] = new Option(label, i)
   console.log("loaded")
   
   #currentActionId = 78
