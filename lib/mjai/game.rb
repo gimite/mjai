@@ -9,8 +9,9 @@ module Mjai
         
         def initialize(players = nil)
           self.players = players if players
-          @chicha = nil
           @bakaze = nil
+          @kyoku_num = nil
+          @honba = nil
           @oya = nil
           @dora_markers = nil
           @current_action = nil
@@ -86,16 +87,9 @@ module Mjai
               end
               @all_pais = pais.flatten().sort()
             when :start_kyoku
-              if !@chicha
-                @chicha = action.oya
-                @bakaze = Pai.new("E")
-                @honba = 0
-              elsif action.oya == @oya  # 連荘
-                @honba += 1
-              else
-                @bakaze = @bakaze.succ if action.oya == @chicha
-                @honba = 0
-              end
+              @bakaze = action.bakaze
+              @kyoku_num = action.kyoku
+              @honba = action.honba
               @oya = action.oya
               @dora_markers = [action.dora_marker]
               @num_pipais = @all_pais.size - 13 * 4 - 14
@@ -137,7 +131,7 @@ module Mjai
             response = responses[i]
             raise("invalid actor") if response && response.actor != @players[i]
             validate_response_type(response, @players[i], action)
-            validate_response_content(response) if response
+            validate_response_content(response, action) if response
           end
         end
         
@@ -188,14 +182,14 @@ module Mjai
           raise("bad response %p for %p" % [response, action]) if !valid
         end
         
-        def validate_response_content(response)
+        def validate_response_content(response, action)
           case response.type
             when :dahai
               assert_fields_exist(response, [:pai, :tsumogiri])
               if !response.actor.possible_dahais.include?(response.pai)
                 raise("dahai not allowed: %p" % response)
               end
-              if response.actor.tehais.size % 3 == 2  # after tsumo
+              if [:tsumo, :reach].include?(action.type)
                 if response.tsumogiri
                   tsumo_pai = response.actor.tehais[-1]
                   if response.pai != tsumo_pai
@@ -234,9 +228,8 @@ module Mjai
         
         def render_board()
           result = ""
-          if @chicha && @bakaze && @honba && @oya
-            kyoku_num = (4 + @oya.id - @chicha.id) % 4 + 1
-            result << ("%s-%d kyoku %d honba  " % [@bakaze, kyoku_num, @honba])
+          if @bakaze && @kyoku_num && @honba
+            result << ("%s-%d kyoku %d honba  " % [@bakaze, @kyoku_num, @honba])
           end
           result << ("pipai: %d  " % self.num_pipais) if self.num_pipais
           result << ("dora_marker: %s  " % @dora_markers.join(" ")) if @dora_markers

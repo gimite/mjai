@@ -16,7 +16,9 @@ module Mjai
         
         def play()
           do_action({:type => :start_game})
-          @next_oya = @players[0]
+          @ag_oya = @chicha = @players[0]
+          @ag_bakaze = Pai.new("E")
+          @ag_honba = 0
           while !self.game_finished?
             play_kyoku()
           end
@@ -32,7 +34,10 @@ module Mjai
             tehais = Array.new(4){ @pipais.pop(13).sort() }
             do_action({
                 :type => :start_kyoku,
-                :oya => @next_oya,
+                :bakaze => @ag_bakaze,
+                :kyoku => (4 + @ag_oya.id - @chicha.id) % 4 + 1,
+                :honba => @ag_honba,
+                :oya => @ag_oya,
                 :dora_marker => dora_marker,
                 :tehais => tehais,
             })
@@ -153,27 +158,61 @@ module Mjai
               :scores => get_scores(deltas),
             })
           end
-          update_next_oya(actions.any?(){ |a| a.actor == self.oya })
+          update_oya(actions.any?(){ |a| a.actor == self.oya }, false)
         end
         
         def process_ryukyoku()
-          tenpais = @players.map(){ |p| p.tenpai? }
-          # TODO 点数計算
-          do_action({:type => :ryukyoku, :reason => :fanpai})
-          update_next_oya(tenpais[self.oya.id])
+          tenpais = []
+          tehais = []
+          for player in players
+            if player.tenpai?
+              tenpais.push(true)
+              tehais.push(player.tehais)
+            else
+              tenpais.push(false)
+              tehais.push([Pai::UNKNOWN] * player.tehais.size)
+            end
+          end
+          tenpai_ids = (0...4).select(){ |i| tenpais[i] }
+          noten_ids = (0...4).select(){ |i| !tenpais[i] }
+          deltas = [0, 0, 0, 0]
+          if (1..3).include?(tenpai_ids.size)
+            for id in tenpai_ids
+              deltas[id] += 3000 / tenpai_ids.size
+            end
+            for id in noten_ids
+              deltas[id] -= 3000 / noten_ids.size
+            end
+          end
+          do_action({
+              :type => :ryukyoku,
+              :reason => :fanpai,
+              :tenpais => tenpais,
+              :tehais => tehais,
+              :deltas => deltas,
+              :scores => get_scores(deltas),
+          })
+          update_oya(tenpais[self.oya.id], true)
         end
         
-        def update_next_oya(renchan)
+        def update_oya(renchan, ryukyoku)
           if renchan
-            @next_oya = self.oya
-          elsif @game_type == :tonpu && self.bakaze == Pai.new("E") && self.oya == @players[3]
-            # TODO Consider 南入
-            @last = true
-          elsif @game_type == :tonnan && self.bakaze == Pai.new("S") && self.oya == @players[3]
-            # TODO Consider 西入
-            @last = true
+            @ag_oya = self.oya
           else
-            @next_oya = @players[(self.oya.id + 1) % 4]
+            if self.oya == @players[3]
+              @ag_bakaze = @ag_bakaze.succ
+              if (@game_type == :tonpu && @ag_bakaze == Pai.new("S")) ||
+                  (@game_type == :tonnan && @ag_bakaze == Pai.new("W"))
+                # TODO Consider 南入, etc.
+                @last = true
+              end
+            end
+            @ag_oya = @players[(self.oya.id + 1) % 4]
+          end
+          if renchan || ryukyoku
+            @ag_honba += 1
+          else
+            @ag_honba = 0
           end
         end
         

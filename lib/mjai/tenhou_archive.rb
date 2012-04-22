@@ -33,12 +33,15 @@ module Mjai
                   @first_kyoku_started = false
                   return do_action({:type => :start_game, :uri => uri, :names => @names})
                 when "INIT"
-                  oya = elem["oya"].to_i()
                   if @first_kyoku_started
                     # Ends the previous kyoku. This is here because there can be multiple AGARIs in
                     # case of daburon, so we cannot detect the end of kyoku in AGARI.
                     do_action({:type => :end_kyoku})
                   end
+                  (kyoku_id, honba, _, _, _, dora_marker_pid) = elem["seed"].split(/,/).map(&:to_i)
+                  bakaze = Pai.new("t", kyoku_id / 4 + 1)
+                  kyoku_num = kyoku_id % 4 + 1
+                  oya = elem["oya"].to_i()
                   @first_kyoku_started = true
                   tehais_list = []
                   for i in 0...4
@@ -53,8 +56,11 @@ module Mjai
                   end
                   do_action({
                     :type => :start_kyoku,
+                    :bakaze => bakaze,
+                    :kyoku => kyoku_num,
+                    :honba => honba,
                     :oya => self.players[oya],
-                    :dora_marker => pid_to_pai(elem["seed"].split(/,/)[5]),
+                    :dora_marker => pid_to_pai(dora_marker_pid.to_s()),
                     :tehais => tehais_list,
                   })
                   return nil
@@ -132,6 +138,18 @@ module Mjai
                   return nil
                 when "RYUUKYOKU"
                   points_params = get_points_params(elem["sc"])
+                  tenpais = []
+                  tehais = []
+                  for i in 0...4
+                    name = "hai%d" % i
+                    if elem[name]
+                      tenpais.push(true)
+                      tehais.push(elem[name].split(/,/).map(){ |pid| pid_to_pai(pid) })
+                    else
+                      tenpais.push(false)
+                      tehais.push([Pai::UNKNOWN] * self.players[i].tehais.size)
+                    end
+                  end
                   reason_map = {
                     "yao9" => :kyushukyuhai,
                     "kaze4" => :sufonrenta,
@@ -147,6 +165,8 @@ module Mjai
                   do_action({
                       :type => :ryukyoku,
                       :reason => reason,
+                      :tenpais => tenpais,
+                      :tehais => tehais,
                       :deltas => points_params[:deltas],
                       :scores => points_params[:scores],
                   })

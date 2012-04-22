@@ -41,16 +41,17 @@ module Mjai
               
               $stdout.sync = true
               player_type = $1
+              opts = OptionParser.getopts(argv, "", "t:", "name:")
+              url = ARGV.shift()
+              
               case player_type
                 when "tsumogiri"
                   player = TsumogiriPlayer.new()
                 when "shanten"
-                  player = Mjai::ShantenPlayer.new({:use_furo => false})
+                  player = Mjai::ShantenPlayer.new({:use_furo => opts["t"] == "f"})
                 else
                   raise("unknown action")
               end
-              opts = OptionParser.getopts(argv, "", "name:")
-              url = ARGV.shift()
               game = TCPClientGame.new({
                   :player => player,
                   :url => url,

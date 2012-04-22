@@ -175,7 +175,8 @@ module Mjai
                 
                 #p [:dahai, scene.best_dahai]
                 
-                tsumogiri = action.type == :tsumo && scene.best_dahai == self.tehais[-1]
+                tsumogiri = [:tsumo, :reach].include?(action.type) &&
+                    scene.best_dahai == self.tehais[-1]
                 return create_action({
                     :type => :dahai,
                     :pai => scene.best_dahai,
