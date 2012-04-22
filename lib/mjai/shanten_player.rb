@@ -65,7 +65,7 @@ module Mjai
                 if sutehai_cands.empty?
                   sutehai_cands = self.possible_dahais
                 end
-                p [:sutehai_cands, sutehai_cands]
+                log("sutehai_cands = %p" % [sutehai_cands])
                 sutehai = sutehai_cands.sample
                 tsumogiri = action.type == :tsumo && sutehai == self.tehais[-1]
                 return create_action({:type => :dahai, :pai => sutehai, :tsumogiri => tsumogiri})

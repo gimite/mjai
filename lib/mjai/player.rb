@@ -273,8 +273,8 @@ module Mjai
         end
         
         def log(text)
-          @log_text << text
-          print(text)
+          @log_text << text << "\n"
+          puts(text)
         end
         
         def clear_log()

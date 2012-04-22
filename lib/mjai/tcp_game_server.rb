@@ -20,7 +20,7 @@ module Mjai
         end
         
         def run()
-          puts("Listening at host %s, port %d" % [@params[:host], @params[:port]])
+          puts("Listening on host %s, port %d" % [@params[:host], @params[:port]])
           puts("URL: %s" % self.server_url)
           puts("Waiting for 4 players...")
           @pids = []

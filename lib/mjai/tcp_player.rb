@@ -15,6 +15,7 @@ module Mjai
         end
         
         def respond_to_action(action)
+          return nil if action.type == :log
           @socket.puts(action.to_json())
           line = nil
           Timeout.timeout(60) do
