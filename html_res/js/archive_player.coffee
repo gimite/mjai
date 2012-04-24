@@ -68,9 +68,9 @@ paiToImageUrl = (pai, pose) ->
       ext = if parsedPai.red then "png" else "gif"
     if pose == undefined
       pose = 1
-    return window.resourceDir + "/images/p_#{name}_#{pose}.#{ext}"
+    return "http://gimite.net/mjai/images/p_#{name}_#{pose}.#{ext}"
   else
-    return window.resourceDir + "/images/blank.png"
+    return "http://gimite.net/mjai/images/blank.png"
 
 cloneBoard = (board) ->
   newBoard = {}

@@ -23,5 +23,8 @@ actions_json = "[%s]" % action_jsons.join(",\n")
 html = ERB.new(File.read(File.dirname(__FILE__) + "/../html_res/archive_player.erb"), nil, "<>").
     result(binding)
 open(html_path, "w"){ |f| f.write(html) }
-FileUtils.rm_rf("#{html_path}.files")
-FileUtils.cp_r("html_res", "#{html_path}.files")
+for src_path in Dir["html_res/css/*.css"] + Dir["html_res/js/*.js"]
+  dest_path = src_path.gsub(/^html_res\//){ "#{html_path}.files/" }
+  FileUtils.mkdir_p(File.dirname(dest_path))
+  FileUtils.cp(src_path, dest_path)
+end
