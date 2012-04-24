@@ -8,7 +8,7 @@ module Mjai
     class ActiveGame < Game
         
         def initialize(players)
-          super(players)
+          super(players.shuffle())
           @game_type = :one_kyoku
         end
         
@@ -16,7 +16,7 @@ module Mjai
         
         def play()
           do_action({:type => :start_game, :names => self.players.map(){ |pl| pl.name }})
-          @ag_oya = @chicha = @players[0]
+          @ag_oya = @ag_chicha = @players[0]
           @ag_bakaze = Pai.new("E")
           @ag_honba = 0
           while !self.game_finished?
@@ -35,7 +35,7 @@ module Mjai
             do_action({
                 :type => :start_kyoku,
                 :bakaze => @ag_bakaze,
-                :kyoku => (4 + @ag_oya.id - @chicha.id) % 4 + 1,
+                :kyoku => (4 + @ag_oya.id - @ag_chicha.id) % 4 + 1,
                 :honba => @ag_honba,
                 :oya => @ag_oya,
                 :dora_marker => dora_marker,
@@ -231,7 +231,7 @@ module Mjai
         end
         
         def get_scores(deltas)
-          return (0...4).map(){ |i| self.players[i].points + deltas[i] }
+          return (0...4).map(){ |i| self.players[i].score + deltas[i] }
         end
         
     end

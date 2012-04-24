@@ -12,6 +12,7 @@ module Mjai
           @bakaze = nil
           @kyoku_num = nil
           @honba = nil
+          @chicha = nil
           @oya = nil
           @dora_markers = nil
           @current_action = nil
@@ -91,6 +92,7 @@ module Mjai
               @kyoku_num = action.kyoku
               @honba = action.honba
               @oya = action.oya
+              @chicha ||= @oya
               @dora_markers = [action.dora_marker]
               @num_pipais = @all_pais.size - 13 * 4 - 14
             when :tsumo
@@ -219,6 +221,10 @@ module Mjai
         
         def doras
           return @dora_markers ? @dora_markers.map(){ |pai| pai.succ } : nil
+        end
+        
+        def ranked_players
+          return @players.sort_by(){ |pl| [-pl.score, (4 + pl.id - @chicha.id) % 4] }
         end
         
         def dump_action(action, io = $stdout)

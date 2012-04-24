@@ -21,17 +21,22 @@ module Mjai
               action = argv.shift()
               opts = OptionParser.getopts(argv, "",
                   "port:11600", "host:127.0.0.1", "room:default", "game_type:one_kyoku",
-                  "repeat", "log_dir:")
+                  "games:1", "repeat", "log_dir:")
               case action
                 when "server"
                   $stdout.sync = true
+                  if opts["repeat"]
+                    num_games = 1.0/0.0
+                  else
+                    num_games = opts["games"].to_i()
+                  end
                   server = TCPGameServer.new({
                       :host => opts["host"],
                       :port => opts["port"].to_i(),
                       :room => opts["room"],
                       :game_type => opts["game_type"].intern,
                       :player_commands => argv,
-                      :repeat => opts["repeat"],
+                      :num_games => num_games,
                       :log_dir => opts["log_dir"],
                   })
                   server.run()

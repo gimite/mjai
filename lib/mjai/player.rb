@@ -24,7 +24,7 @@ module Mjai
         attr_reader(:log_text)
         attr_accessor(:name)
         attr_accessor(:game)
-        attr_accessor(:points)
+        attr_accessor(:score)
         
         def anpais
           return @sutehais + @extra_anpais
@@ -47,7 +47,7 @@ module Mjai
             when :start_game
               @id = action.id
               @name = action.names[@id] if action.names
-              @points = 25000
+              @score = 25000
               @attributes = OpenStruct.new()
               @tehais = nil
               @furos = nil
@@ -114,7 +114,7 @@ module Mjai
           end
           
           if action.scores
-            @points = action.scores[self.id]
+            @score = action.scores[self.id]
           end
           
         end
@@ -148,7 +148,7 @@ module Mjai
               @furos.empty? &&
               !self.reach? &&
               self.game.num_pipais >= 4 &&
-              @points >= 1000
+              @score >= 1000
         end
         
         def can_hora?(shanten_analysis = nil)
@@ -270,6 +270,10 @@ module Mjai
         
         def create_action(params = {})
           return Action.new({:actor => self}.merge(params))
+        end
+        
+        def rank
+          return @game.ranked_players.index(self) + 1
         end
         
         def log(text)
