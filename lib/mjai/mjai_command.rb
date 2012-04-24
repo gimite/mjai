@@ -4,6 +4,7 @@ require "mjai/tcp_game_server"
 require "mjai/tcp_client_game"
 require "mjai/tsumogiri_player"
 require "mjai/shanten_player"
+require "mjai/file_converter"
 
 
 module Mjai
@@ -34,6 +35,8 @@ module Mjai
                       :log_dir => opts["log_dir"],
                   })
                   server.run()
+                when "convert"
+                  FileConverter.new().convert(argv.shift(), argv.shift())
                 else
                   raise("unknown action")
               end
