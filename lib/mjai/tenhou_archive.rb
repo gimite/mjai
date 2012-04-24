@@ -110,7 +110,6 @@ module Mjai
                       raise("should not happen")
                   end
                 when "AGARI"
-                  puts(elem)  # kari
                   tehais = (elem["hai"].split(/,/) - [elem["machi"]]).map(){ |pid| pid_to_pai(pid) }
                   points_params = get_points_params(elem["sc"])
                   (fu, hora_points, _) = elem["ten"].split(/,/).map(&:to_i)

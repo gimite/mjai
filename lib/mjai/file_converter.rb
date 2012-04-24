@@ -1,6 +1,8 @@
 require "erb"
 require "fileutils"
 
+require "mjai/archive"
+
 
 module Mjai
     
@@ -14,8 +16,29 @@ module Mjai
           case [src_ext, dest_ext]
             when [".mjson", ".html"]
               mjson_to_html(src_path, dest_path)
+            when [".mjlog", ".xml"]
+              archive = Archive.load(src_path)
+              open(dest_path, "w"){ |f| f.write(archive.xml) }
+            when [".mjson", ".human"], [".mjlog", ".human"]
+              dump_archive(src_path, dest_path, :human)
+            when [".mjlog", ".mjson"]
+              dump_archive(src_path, dest_path, :mjson)
             else
               raise("unsupported ext pair: #{src_ext}, #{dest_ext}")
+          end
+        end
+        
+        def dump_archive(archive_path, output_path, output_format)
+          archive = Archive.load(archive_path)
+          open(output_path, "w") do |f|
+            archive.on_action() do |action|
+              if output_format == :human
+                archive.dump_action(action, f)
+              else
+                f.puts(action.to_json())
+              end
+            end
+            archive.play()
           end
         end
         

@@ -221,9 +221,9 @@ module Mjai
           return @dora_markers ? @dora_markers.map(){ |pai| pai.succ } : nil
         end
         
-        def dump_action(action)
-          puts(action.to_json())
-          print(render_board())
+        def dump_action(action, io = $stdout)
+          io.puts(action.to_json())
+          io.print(render_board())
         end
         
         def render_board()
