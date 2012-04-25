@@ -1,7 +1,6 @@
 require "zlib"
 require "uri"
 require "nokogiri"
-require "with_progress"
 
 require "mjai/archive"
 require "mjai/pai"
@@ -402,7 +401,6 @@ module Mjai
           @doc = Nokogiri.XML(@xml)
           elems = @doc.root.children
           elems.each_with_index() do |elem, j|
-            #puts(elem)  # kari
             if on_tenhou_event(elem, elems[j + 1]) == :broken
               break  # Something is wrong.
             end
