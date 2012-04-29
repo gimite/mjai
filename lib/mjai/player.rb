@@ -169,47 +169,77 @@ module Mjai
         end
         
         def possible_furo_actions
+          
           # TODO Consider red pai
           action = @game.current_action
-          if (action.type != :dahai || action.actor == self) ||
-              self.reach? ||
-              @game.num_pipais < 4
-            return []
-          end
           result = []
-          if @tehais.select(){ |pai| pai == action.pai }.size >= 3
-            result.push(create_action({
-              :type => :daiminkan,
-              :pai => action.pai,
-              :consumed => [action.pai] * 3,
-              :target => action.actor
-            }))
-          elsif @tehais.select(){ |pai| pai == action.pai }.size >= 2
-            result.push(create_action({
-              :type => :pon,
-              :pai => action.pai,
-              :consumed => [action.pai] * 2,
-              :target => action.actor
-            }))
-          elsif (action.actor.id + 1) % 4 == self.id && action.pai.type != "t"
-            for i in 0...3
-              consumed = (((-i)...(-i + 3)).to_a() - [0]).map() do |j|
-                Pai.new(action.pai.type, action.pai.number + j)
-              end
-              if consumed.all?(){ |pai| @tehais.index(pai) }
-                result.push(create_action({
-                  :type => :chi,
-                  :pai => action.pai,
-                  :consumed => consumed,
-                  :target => action.actor,
-                }))
+          
+          if action.type == :dahai &&
+              action.actor != self &&
+              !self.reach? &&
+              @game.num_pipais >= 4
+            
+            if @tehais.select(){ |pai| pai == action.pai }.size >= 3
+              result.push(create_action({
+                :type => :daiminkan,
+                :pai => action.pai,
+                :consumed => [action.pai] * 3,
+                :target => action.actor
+              }))
+            elsif @tehais.select(){ |pai| pai == action.pai }.size >= 2
+              result.push(create_action({
+                :type => :pon,
+                :pai => action.pai,
+                :consumed => [action.pai] * 2,
+                :target => action.actor
+              }))
+            elsif (action.actor.id + 1) % 4 == self.id && action.pai.type != "t"
+              for i in 0...3
+                consumed = (((-i)...(-i + 3)).to_a() - [0]).map() do |j|
+                  Pai.new(action.pai.type, action.pai.number + j)
+                end
+                if consumed.all?(){ |pai| @tehais.index(pai) }
+                  result.push(create_action({
+                    :type => :chi,
+                    :pai => action.pai,
+                    :consumed => consumed,
+                    :target => action.actor,
+                  }))
+                end
               end
             end
+            # Excludes furos which forces kuikae afterwards.
+            result = result.select() do |a|
+              a.type == :daiminkan || !possible_dahais_after_furo(a).empty?
+            end
+            
+          elsif action.type == :tsumo &&
+              action.actor == self &&
+              @game.num_pipais > 0
+            
+            for pai in self.tehais.uniq
+              same_pais = self.tehais.select(){ |tp| tp.same_symbol?(pai) }
+              if same_pais.size >= 4
+                if self.reach?
+                  orig_tenpai = TenpaiAnalysis.new(self.tehais[0...-1])
+                  new_tenpai = TenpaiAnalysis.new(
+                      self.tehais.select(){ |tp| !tp.same_symbol?(pai) })
+                  ok = new_tenpai.tenpai? && new_tenpai.waited_pais == orig_tenpai.waited_pais
+                else
+                  ok = true
+                end
+                result.push(create_action({:type => :ankan, :consumed => same_pais})) if ok
+              end
+              pon = self.furos.find(){ |f| f.type == :pon && f.taken.same_symbol?(pai) }
+              if pon
+                result.push(create_action({:type => :kakan, :pai => pai, :consumed => pon.pais}))
+              end
+            end
+            
           end
-          # Excludes furos which forces kuikae afterwards.
-          return result.select() do |a|
-            a.type == :daiminkan || !possible_dahais_after_furo(a).empty?
-          end
+          
+          return result
+          
         end
         
         def possible_dahais(action = @game.current_action, tehais = @tehais)

@@ -1,6 +1,7 @@
 require "mjai/game"
 require "mjai/action"
 require "mjai/hora"
+require "mjai/validation_error"
 
 
 module Mjai
@@ -15,14 +16,20 @@ module Mjai
         attr_accessor(:game_type)
         
         def play()
-          do_action({:type => :start_game, :names => self.players.map(){ |pl| pl.name }})
-          @ag_oya = @ag_chicha = @players[0]
-          @ag_bakaze = Pai.new("E")
-          @ag_honba = 0
-          while !self.game_finished?
-            play_kyoku()
+          begin
+            do_action({:type => :start_game, :names => self.players.map(){ |pl| pl.name }})
+            @ag_oya = @ag_chicha = @players[0]
+            @ag_bakaze = Pai.new("E")
+            @ag_honba = 0
+            while !self.game_finished?
+              play_kyoku()
+            end
+            do_action({:type => :end_game})
+            return true
+          rescue ValidationError => ex
+            do_action({:type => :error, :message => ex.message})
+            return false
           end
-          do_action({:type => :end_game})
         end
         
         def play_kyoku()

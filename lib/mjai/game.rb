@@ -1,6 +1,7 @@
 require "mjai/action"
 require "mjai/pai"
 require "mjai/furo"
+require "mjai/validation_error"
 
 
 module Mjai
@@ -66,9 +67,9 @@ module Mjai
           responses = (0...4).map() do |i|
             @players[i].respond_to_action(action_in_view(action, i))
           end
-          validate_responses(responses, action)
-          
           @previous_action = action
+          
+          validate_responses(responses, action)
           return responses
           
         end
@@ -131,17 +132,27 @@ module Mjai
         def validate_responses(responses, action)
           for i in 0...4
             response = responses[i]
-            raise("invalid actor") if response && response.actor != @players[i]
-            validate_response_type(response, @players[i], action)
-            validate_response_content(response, action) if response
+            begin
+              if response && response.actor != @players[i]
+                raise(ValidationError, "Invalid actor.")
+              end
+              validate_response_type(response, @players[i], action)
+              validate_response_content(response, action) if response
+            rescue ValidationError => ex
+              raise(ValidationError,
+                  "Error in player %d's response: %s Response: %s" % [i, ex.message, response])
+            end
           end
         end
         
         def validate_response_type(response, player, action)
+          if response && response.type == :error
+            raise(ValidationError, response.message)
+          end
           is_actor = player == action.actor
           if expect_response_from?(player)
             case action.type
-              when :start_game, :start_kyoku, :haipai, :end_kyoku, :end_game,
+              when :start_game, :start_kyoku, :end_kyoku, :end_game, :error,
                   :hora, :ryukyoku, :dora, :reach_accepted
                 valid = !response
               when :tsumo
@@ -176,45 +187,94 @@ module Mjai
               when :log
                 valid = !response
               else
-                raise("unknown action type: #{action.type}")
+                raise(ValidationError, "Unknown action type: '#{action.type}'")
             end
           else
             valid = !response
           end
-          raise("bad response %p for %p" % [response, action]) if !valid
-        end
-        
-        def validate_response_content(response, action)
-          case response.type
-            when :dahai
-              assert_fields_exist(response, [:pai, :tsumogiri])
-              if !response.actor.possible_dahais.include?(response.pai)
-                raise("dahai not allowed: %p" % response)
-              end
-              if [:tsumo, :reach].include?(action.type)
-                if response.tsumogiri
-                  tsumo_pai = response.actor.tehais[-1]
-                  if response.pai != tsumo_pai
-                    raise("tsumogiri is true but the pai is not tsumo pai: %s != %s" %
-                        [response.pai, tsumo_pai])
-                  end
-                else
-                  if !response.actor.tehais[0...-1].include?(response.pai)
-                    raise("tsumogiri is false but the pai is not in tehais")
-                  end
-                end
-              else  # after furo
-                if response.tsumogiri
-                  raise("tsumogiri must be false on dahai after furo")
-                end
-              end
+          if !valid
+            raise(ValidationError,
+                "Unexpected response type '%s' for %s." % [response ? response.type : :none, action])
           end
         end
         
-        def assert_fields_exist(response, field_names)
+        def validate_response_content(response, action)
+          
+          case response.type
+            
+            when :dahai
+              validate_fields_exist(response, [:pai, :tsumogiri])
+              validate(
+                  response.actor.possible_dahais.include?(response.pai),
+                  "Cannot dahai this pai.")
+              if [:tsumo, :reach].include?(action.type)
+                if response.tsumogiri
+                  tsumo_pai = response.actor.tehais[-1]
+                  validate(
+                      response.pai == tsumo_pai,
+                      "tsumogiri is true but the pai is not tsumo pai: %s != %s" %
+                      [response.pai, tsumo_pai])
+                else
+                  validate(
+                      response.actor.tehais[0...-1].include?(response.pai),
+                      "tsumogiri is false but the pai is not in tehais.")
+                end
+              else  # after furo
+                validate(
+                    !response.tsumogiri,
+                    "tsumogiri must be false on dahai after furo.")
+              end
+            
+            when :chi, :pon, :daiminkan, :ankan, :kakan
+              if response.type == :ankan
+                validate_fields_exist(response, [:consumed])
+              elsif response.type == :kakan
+                validate_fields_exist(response, [:pai, :consumed])
+              else
+                validate_fields_exist(response, [:target, :pai, :consumed])
+                validate(
+                    response.target == action.actor,
+                    "target must be %d." % action.actor.id)
+              end
+              valid = response.actor.possible_furo_actions.any?() do |a|
+                a.type == response.type &&
+                    a.pai == response.pai &&
+                    a.consumed.sort() == response.consumed.sort()
+              end
+              validate(valid, "The furo is not allowed.")
+            
+            when :reach
+              validate(response.actor.can_reach?, "Cannot reach.")
+            
+            when :hora
+              validate_fields_exist(response, [:target, :pai])
+              validate(
+                  response.target == action.actor,
+                  "target must be %d." % action.actor.id)
+              if response.target == response.actor
+                tsumo_pai = response.actor.tehais[-1]
+                validate(
+                    response.pai == tsumo_pai,
+                    "pai is not tsumo pai: %s != %s" % [response.pai, tsumo_pai])
+              else
+                validate(
+                    response.pai == action.pai,
+                    "pai is not previous dahai: %s != %s" % [response.pai, action.pai])
+              end
+              validate(response.actor.can_hora?, "Cannot hora.")
+            
+          end
+          
+        end
+        
+        def validate(criterion, message)
+          raise(ValidationError, message) if !criterion
+        end
+        
+        def validate_fields_exist(response, field_names)
           for name in field_names
             if !response.fields.has_key?(name)
-              raise("%s missing" % name)
+              raise(ValidationError, "%s missing." % name)
             end
           end
         end

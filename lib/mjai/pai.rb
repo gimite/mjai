@@ -40,7 +40,7 @@ module Mjai
               if str == "?"
                 @type = @number = nil
                 @red = false
-              elsif str =~ /^([1-9])([mps])(r)?$/
+              elsif str =~ /\A([1-9])([mps])(r)?\z/
                 @type = $2
                 @number = $1.to_i()
                 @red = $3 != nil
@@ -49,13 +49,13 @@ module Mjai
                 @number = number
                 @red = false
               else
-                raise(ArgumentError, "unknown pai string: %s" % str)
+                raise(ArgumentError, "Unknown pai string: %s" % str)
               end
             when 2, 3
               (@type, @number, @red) = args
               @red = false if @red == nil
             else
-              raise(ArgumentError, "wrong number of args")
+              raise(ArgumentError, "Wrong number of args.")
           end
         end
         

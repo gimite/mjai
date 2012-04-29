@@ -33,6 +33,7 @@ module Mjai
           [:deltas, :numbers],
           [:scores, :numbers],
           [:text, :string],
+          [:message, :string],
         ])
         
     end

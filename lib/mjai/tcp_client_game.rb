@@ -34,7 +34,7 @@ module Mjai
                       "room" => uri.path.slice(/^\/(.*)$/, 1),
                   })
                 when "error"
-                  raise("Server error: %s" % action_json["message"])
+                  break
                 else
                   if action_obj["type"] == "start_game"
                     @my_id = action_obj["id"]
