@@ -8,6 +8,13 @@ module Mjai
     
     class ActiveGame < Game
         
+        ACTION_PREFERENCES = {
+            :hora => 3,
+            :pon => 2,
+            :daiminkan => 2,
+            :chi => 1,
+        }
+        
         def initialize(players)
           super(players.shuffle())
           @game_type = :one_kyoku
@@ -105,8 +112,10 @@ module Mjai
         end
         
         def choose_actions(actions)
-          action = actions.find(){ |a| a }  # TODO fix this
-          return action ? [action] : []
+          actions = actions.select(){ |a| a }
+          max_pref = actions.map(){ |a| ACTION_PREFERENCES[a.type] || 0 }.max
+          max_actions = actions.select(){ |a| (ACTION_PREFERENCES[a.type] || 0) == max_pref }
+          return max_actions
         end
         
         def process_hora(actions)
@@ -114,7 +123,6 @@ module Mjai
           for action in actions
             hora = get_hora(action)
             raise("no yaku") if !hora.valid?
-            #p [:hora, hora.fu, hora.fan, hora.points, hora.yakus]
             deltas = [0, 0, 0, 0]
             # TODO 積み棒
             deltas[action.actor.id] += hora.points + self.honba * 300
