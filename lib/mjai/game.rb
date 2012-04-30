@@ -1,6 +1,7 @@
 require "mjai/action"
 require "mjai/pai"
 require "mjai/furo"
+require "mjai/hora"
 require "mjai/validation_error"
 
 
@@ -281,6 +282,34 @@ module Mjai
         
         def doras
           return @dora_markers ? @dora_markers.map(){ |pai| pai.succ } : nil
+        end
+        
+        def get_hora(action)
+          raise("should not happen") if action.type != :hora
+          hora_type = action.actor == action.target ? :tsumo : :ron
+          if hora_type == :tsumo
+            tehais = action.actor.tehais[0...-1]
+          else
+            tehais = action.actor.tehais
+          end
+          return Hora.new({
+            :tehais => tehais,
+            :furos => action.actor.furos,
+            :taken => action.pai,
+            :hora_type => hora_type,
+            :oya => action.actor == self.oya,
+            :bakaze => self.bakaze,
+            :jikaze => action.actor.jikaze,
+            :doras => self.doras,
+            :uradoras => [],  # TODO
+            :reach => action.actor.reach?,
+            :double_reach => false,  # TODO
+            :ippatsu => false,  # TODO
+            :rinshan => false,  # TODO
+            :haitei => self.num_pipais == 0,
+            :first_turn => false,  # TODO
+            :chankan => false,  # TODO
+          })
         end
         
         def ranked_players

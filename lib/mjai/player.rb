@@ -155,16 +155,18 @@ module Mjai
           action = @game.current_action
           if action.type == :tsumo && action.actor == self
             hora_type = :tsumo
-            hais = @tehais
+            pais = @tehais
           elsif action.type == :dahai && action.actor != self
             hora_type = :ron
-            hais = @tehais + [action.pai]
+            pais = @tehais + [action.pai]
           else
             return false
           end
-          shanten_analysis ||= ShantenAnalysis.new(hais, -1)
-          # TODO check yaku
+          shanten_analysis ||= ShantenAnalysis.new(pais, -1)
+          hora_action =
+              create_action({:type => :hora, :target => action.actor, :pai => pais[-1]})
           return shanten_analysis.shanten == -1 &&
+              @game.get_hora(hora_action).valid? &&
               (hora_type == :tsumo || !self.furiten?)
         end
         

@@ -112,37 +112,14 @@ module Mjai
         def process_hora(actions)
           # TODO ダブロンの上家取り
           for action in actions
-            hora_type = action.actor == action.target ? :tsumo : :ron
-            if hora_type == :tsumo
-              tehais = action.actor.tehais[0...-1]
-            else
-              tehais = action.actor.tehais
-            end
-            hora = Hora.new({
-              :tehais => tehais,
-              :furos => action.actor.furos,
-              :taken => action.pai,
-              :hora_type => hora_type,
-              :oya => action.actor == self.oya,
-              :bakaze => self.bakaze,
-              :jikaze => action.actor.jikaze,
-              :doras => self.doras,
-              :uradoras => [],  # TODO
-              :reach => action.actor.reach?,
-              :double_reach => false,  # TODO
-              :ippatsu => false,  # TODO
-              :rinshan => false,  # TODO
-              :haitei => @pipais.empty?,
-              :first_turn => false,  # TODO
-              :chankan => false,  # TODO
-            })
+            hora = get_hora(action)
             raise("no yaku") if !hora.valid?
             #p [:hora, hora.fu, hora.fan, hora.points, hora.yakus]
             deltas = [0, 0, 0, 0]
             # TODO 積み棒
             deltas[action.actor.id] += hora.points + self.honba * 300
             deltas[action.actor.id] += self.players.select(){ |pl| pl.reach? }.size * 1000
-            if hora_type == :tsumo
+            if hora.hora_type == :tsumo
               for player in self.players
                 next if player == action.actor
                 deltas[player.id] -=
@@ -156,7 +133,7 @@ module Mjai
               :actor => action.actor,
               :target => action.target,
               :pai => action.pai,
-              :hora_tehais => tehais,
+              :hora_tehais => action.actor.tehais,
               :yakus => hora.yakus,
               :fu => hora.fu,
               :fan => hora.fan,
