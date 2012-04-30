@@ -5,3 +5,4 @@ resource
 .sass-cache
 Gemfile.lock
 *.gem
+nohup.out

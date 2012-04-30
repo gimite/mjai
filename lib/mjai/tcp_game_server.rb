@@ -85,28 +85,45 @@ module Mjai
         end
         
         def play_game()
+          
           if @params[:log_dir]
             mjson_path = "%s/%s.mjson" % [@params[:log_dir], Time.now.strftime("%Y-%m-%d-%H%M%S")]
           else
             mjson_path = nil
           end
+          
           success = false
-          maybe_open(mjson_path, "w") do |mjson_out|
-            mjson_out.sync = true if mjson_out
-            @game = ActiveGame.new(@players)
-            @game.game_type = @params[:game_type]
-            @game.on_action() do |action|
-              mjson_out.puts(action.to_json()) if mjson_out
-              @game.dump_action(action)
+          begin
+            maybe_open(mjson_path, "w") do |mjson_out|
+              mjson_out.sync = true if mjson_out
+              @game = ActiveGame.new(@players)
+              @game.game_type = @params[:game_type]
+              @game.on_action() do |action|
+                mjson_out.puts(action.to_json()) if mjson_out
+                @game.dump_action(action)
+              end
+              success = @game.play()
             end
-            success = @game.play()
+          rescue => ex
+            print_backtrace(ex)
           end
-          for player in @players
-            player.close()
+          
+          begin
+            for player in @players
+              player.close()
+            end
+          rescue => ex
+            print_backtrace(ex)
           end
-          for pid in @pids
-            Process.waitpid(pid)
+          
+          begin
+            for pid in @pids
+              Process.waitpid(pid)
+            end
+          rescue => ex
+            print_backtrace(ex)
           end
+          
           @num_finished_games += 1
           
           if success
@@ -173,6 +190,13 @@ module Mjai
             open(path, mode, &block)
           else
             yield(nil)
+          end
+        end
+        
+        def print_backtrace(ex, io = $stderr)
+          io.printf("%s: %s (%p)\n", ex.backtrace[0], ex.message, ex.class)
+          for s in ex.backtrace[1..-1]
+            io.printf("        %s\n", s)
           end
         end
         

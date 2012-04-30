@@ -55,6 +55,7 @@ module Mjai
             when /^mjai-(.+)$/
               
               $stdout.sync = true
+              $stderr.sync = true
               player_type = $1
               opts = OptionParser.getopts(argv, "", "t:", "name:")
               url = ARGV.shift()
