@@ -43,7 +43,13 @@ module Mjai
                 when "convert"
                   FileConverter.new().convert(argv.shift(), argv.shift())
                 else
-                  raise("unknown action")
+                  $stderr.puts(
+                      "Usage:\n" +
+                      "  #{$PROGRAM_NAME} server --port=PORT " +
+                          "[PLAYER1_COMMAND] [PLAYER2_COMMAND] [...]\n" +
+                      "  #{$PROGRAM_NAME} convert hoge.mjson hoge.html\n" +
+                      "  #{$PROGRAM_NAME} convert hoge.mjlog hoge.mjson\n")
+                  exit(1)
               end
               
             when /^mjai-(.+)$/
@@ -53,13 +59,19 @@ module Mjai
               opts = OptionParser.getopts(argv, "", "t:", "name:")
               url = ARGV.shift()
               
+              if !url
+                $stderr.puts(
+                    "Usage:\n" +
+                    "  #{$PROGRAM_NAME} mjsonp://localhost:11600/default\n")
+                exit(1)
+              end
               case player_type
                 when "tsumogiri"
                   player = TsumogiriPlayer.new()
                 when "shanten"
                   player = Mjai::ShantenPlayer.new({:use_furo => opts["t"] == "f"})
                 else
-                  raise("unknown action")
+                  raise("should not happen")
               end
               game = TCPClientGame.new({
                   :player => player,
