@@ -170,7 +170,6 @@ module Mjai
         
         def possible_furo_actions
           
-          # TODO Consider red pai
           action = @game.current_action
           result = []
           
@@ -179,26 +178,28 @@ module Mjai
               !self.reach? &&
               @game.num_pipais >= 4
             
-            if @tehais.select(){ |pai| pai == action.pai }.size >= 3
+            for consumed in get_pais_combinations([action.pai] * 3, @tehais)
               result.push(create_action({
                 :type => :daiminkan,
                 :pai => action.pai,
-                :consumed => [action.pai] * 3,
+                :consumed => consumed,
                 :target => action.actor
               }))
-            elsif @tehais.select(){ |pai| pai == action.pai }.size >= 2
+            end
+            for consumed in get_pais_combinations([action.pai] * 2, @tehais)
               result.push(create_action({
                 :type => :pon,
                 :pai => action.pai,
-                :consumed => [action.pai] * 2,
+                :consumed => consumed,
                 :target => action.actor
               }))
-            elsif (action.actor.id + 1) % 4 == self.id && action.pai.type != "t"
+            end
+            if (action.actor.id + 1) % 4 == self.id && action.pai.type != "t"
               for i in 0...3
-                consumed = (((-i)...(-i + 3)).to_a() - [0]).map() do |j|
+                target_pais = (((-i)...(-i + 3)).to_a() - [0]).map() do |j|
                   Pai.new(action.pai.type, action.pai.number + j)
                 end
-                if consumed.all?(){ |pai| @tehais.index(pai) }
+                for consumed in get_pais_combinations(target_pais, @tehais)
                   result.push(create_action({
                     :type => :chi,
                     :pai => action.pai,
@@ -240,6 +241,19 @@ module Mjai
           
           return result
           
+        end
+        
+        def get_pais_combinations(target_pais, source_pais)
+          return Set.new([[]]) if target_pais.empty?
+          result = Set.new()
+          for pai in source_pais.select(){ |pai| target_pais[0].same_symbol?(pai) }.uniq
+            new_source_pais = source_pais.dup()
+            new_source_pais.delete_at(new_source_pais.index(pai))
+            for cdr_pais in get_pais_combinations(target_pais[1..-1], new_source_pais)
+              result.add(([pai] + cdr_pais).sort())
+            end
+          end
+          return result
         end
         
         def possible_dahais(action = @game.current_action, tehais = @tehais)
