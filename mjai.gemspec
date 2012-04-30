@@ -11,7 +11,7 @@ Gem::Specification.new do |s|
   
   s.files = Dir["bin/*"] + Dir["lib/**/*"] + Dir["share/**/*"]
   s.require_paths = ["lib"]
-  s.executables = Dir["bin/*"].map(){ |s| File.basename(s) }
+  s.executables = Dir["bin/*"].map(){ |pt| File.basename(pt) }
   s.has_rdoc = true
   s.extra_rdoc_files = []
   s.rdoc_options = []

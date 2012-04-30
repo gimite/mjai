@@ -183,7 +183,7 @@ module Mjai
         end
         
         def get_key(pai_set, mentsus)
-          return [pai_set, mentsus.sort()]
+          return [pai_set, Set.new(mentsus)]
         end
         
         def get_min_shanten_for_mentsus(mentsus)

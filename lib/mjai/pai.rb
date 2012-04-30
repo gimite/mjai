@@ -92,7 +92,7 @@ module Mjai
         end
         
         def data
-          return [@type, @number, @red ? 1 : 0]
+          return [@type || "", @number || -1, @red ? 1 : 0]
         end
         
         def ==(other)

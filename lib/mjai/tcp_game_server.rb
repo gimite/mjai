@@ -158,7 +158,7 @@ module Mjai
           for command in @params[:player_commands]
             command += " " + self.server_url
             puts(command)
-            @pids.push(spawn(command))
+            @pids.push(fork(){ exec(command) })
           end
         end
         

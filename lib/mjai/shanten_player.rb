@@ -64,7 +64,7 @@ module Mjai
                   sutehai_cands = self.possible_dahais
                 end
                 log("sutehai_cands = %p" % [sutehai_cands])
-                sutehai = sutehai_cands.sample
+                sutehai = sutehai_cands[rand(sutehai_cands.size)]
                 tsumogiri = [:tsumo, :reach].include?(action.type) && sutehai == self.tehais[-1]
                 return create_action({:type => :dahai, :pai => sutehai, :tsumogiri => tsumogiri})
                 

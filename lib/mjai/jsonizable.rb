@@ -89,7 +89,7 @@ module Mjai
         
         def self.plains_to_objs(plains, type, name, game)
           validate_class(plains, Array, name)
-          return plains.map().with_index() do |c, i|
+          return plains.each_with_index().map() do |c, i|
             plain_to_obj(c, type, "#{name}[#{i}]", game)
           end
         end
