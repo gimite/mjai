@@ -209,7 +209,6 @@ module Mjai
         end
         
         def game_finished?
-          # TODO fix this
           if @last
             return true
           else
