@@ -20,6 +20,8 @@ module Mjai
           @current_action = nil
           @previous_action = nil
           @num_pipais = nil
+          @num_initial_pipais = nil
+          @first_turn = false
         end
         
         attr_reader(:players)
@@ -64,6 +66,9 @@ module Mjai
           update_state(action)
           
           @on_action.call(action) if @on_action
+          p [:first_turn, @first_turn]  # kari
+          p [:rinshan, players.map(){ |pl| pl.rinshan? }]  # kari
+          p [:ippatsu_chance, players.map(){ |pl| pl.ippatsu_chance? }]  # kari
           
           responses = (0...4).map() do |i|
             @players[i].respond_to_action(action_in_view(action, i))
@@ -96,9 +101,15 @@ module Mjai
               @oya = action.oya
               @chicha ||= @oya
               @dora_markers = [action.dora_marker]
-              @num_pipais = @all_pais.size - 13 * 4 - 14
+              @num_pipais = @num_initial_pipais = @all_pais.size - 13 * 4 - 14
+              @first_turn = true
             when :tsumo
               @num_pipais -= 1
+              if @num_initial_pipais - @num_pipais > 4
+                @first_turn = false
+              end
+            when :chi, :pon, :daiminkan, :kakan, :ankan
+              @first_turn = false
             when :dora
               @dora_markers.push(action.dora_marker)
           end
@@ -183,6 +194,7 @@ module Mjai
                   # Actor should wait for tsumo.
                   valid = !response
                 else
+                  # hora is for chankan.
                   valid = !response || response.type == :hora
                 end
               when :log
@@ -284,7 +296,7 @@ module Mjai
           return @dora_markers ? @dora_markers.map(){ |pai| pai.succ } : nil
         end
         
-        def get_hora(action)
+        def get_hora(action, params = {})
           raise("should not happen") if action.type != :hora
           hora_type = action.actor == action.target ? :tsumo : :ron
           if hora_type == :tsumo
@@ -292,6 +304,7 @@ module Mjai
           else
             tehais = action.actor.tehais
           end
+          uradoras = (params[:uradora_markers] || []).map(){ |pai| pai.succ }
           return Hora.new({
             :tehais => tehais,
             :furos => action.actor.furos,
@@ -301,19 +314,27 @@ module Mjai
             :bakaze => self.bakaze,
             :jikaze => action.actor.jikaze,
             :doras => self.doras,
-            :uradoras => [],  # TODO
+            :uradoras => uradoras,
             :reach => action.actor.reach?,
-            :double_reach => false,  # TODO
-            :ippatsu => false,  # TODO
-            :rinshan => false,  # TODO
+            :double_reach => action.actor.double_reach?,
+            :ippatsu => action.actor.ippatsu_chance?,
+            :rinshan => action.actor.rinshan?,
             :haitei => self.num_pipais == 0,
-            :first_turn => false,  # TODO
-            :chankan => false,  # TODO
+            :first_turn => @first_turn,
+            :chankan => params[:previous_action].type == :kakan,
           })
         end
         
+        def first_turn?
+          return @first_turn
+        end
+        
         def ranked_players
-          return @players.sort_by(){ |pl| [-pl.score, (4 + pl.id - @chicha.id) % 4] }
+          return @players.sort_by(){ |pl| [-pl.score, distance(pl, @chicha)] }
+        end
+        
+        def distance(player1, player2)
+          return (4 + player1.id - player2.id) % 4
         end
         
         def dump_action(action, io = $stdout)

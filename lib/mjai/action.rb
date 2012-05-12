@@ -18,6 +18,7 @@ module Mjai
           [:bakaze, :pai],
           [:kyoku, :number],
           [:honba, :number],
+          [:kyotaku, :number],
           [:oya, :player],
           [:dora_marker, :pai],
           [:uradora_markers, :pais],

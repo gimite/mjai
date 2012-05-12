@@ -34,6 +34,18 @@ module Mjai
           return @reach_state == :accepted
         end
         
+        def double_reach?
+          return @double_reach
+        end
+        
+        def ippatsu_chance?
+          return @ippatsu_chance
+        end
+        
+        def rinshan?
+          return @rinshan
+        end
+        
         def update_state(action)
           
           if @game.previous_action &&
@@ -56,6 +68,9 @@ module Mjai
               @extra_anpais = nil
               @reach_state = nil
               @reach_ho_index = nil
+              @double_reach = false
+              @ippatsu_chance = false
+              @rinshan = false
             when :start_kyoku
               @tehais = action.tehais[self.id]
               @furos = []
@@ -64,6 +79,11 @@ module Mjai
               @extra_anpais = []
               @reach_state = :none
               @reach_ho_index = nil
+              @double_reach = false
+              @ippatsu_chance = false
+              @rinshan = false
+            when :chi, :pon, :daiminkan, :kakan, :ankan
+              @ippatsu_chance = false
           end
           
           if action.actor == self
@@ -75,6 +95,8 @@ module Mjai
                 @tehais.sort!()
                 @ho.push(action.pai)
                 @sutehais.push(action.pai)
+                @ippatsu_chance = false
+                @rinshan = false
                 @extra_anpais.clear() if !self.reach?
               when :chi, :pon, :daiminkan, :ankan
                 for pai in action.consumed
@@ -86,6 +108,9 @@ module Mjai
                   :consumed => action.consumed,
                   :target => action.target,
                 }))
+                if [:daiminkan, :ankan].include?(action.type)
+                  @rinshan = true
+                end
               when :kakan
                 delete_tehai(action.pai)
                 pon_index =
@@ -97,17 +122,20 @@ module Mjai
                   :consumed => @furos[pon_index].consumed + [action.pai],
                   :target => @furos[pon_index].target,
                 })
+                @rinshan = true
               when :reach
                 @reach_state = :declared
+                @double_reach = true if @game.first_turn?
               when :reach_accepted
                 @reach_state = :accepted
                 @reach_ho_index = @ho.size - 1
+                @ippatsu_chance = true
             end
           end
           
           if action.target == self
             case action.type
-              when :chi, :pon, :daiminkan, :ankan
+              when :chi, :pon, :daiminkan
                 pai = @ho.pop()
                 raise("should not happen") if pai != action.pai
             end
@@ -156,7 +184,7 @@ module Mjai
           if action.type == :tsumo && action.actor == self
             hora_type = :tsumo
             pais = @tehais
-          elsif action.type == :dahai && action.actor != self
+          elsif [:dahai, :kakan].include?(action.type) && action.actor != self
             hora_type = :ron
             pais = @tehais + [action.pai]
           else
@@ -166,7 +194,7 @@ module Mjai
           hora_action =
               create_action({:type => :hora, :target => action.actor, :pai => pais[-1]})
           return shanten_analysis.shanten == -1 &&
-              @game.get_hora(hora_action).valid? &&
+              @game.get_hora(hora_action, {:previous_action => action}).valid? &&
               (hora_type == :tsumo || !self.furiten?)
         end
         

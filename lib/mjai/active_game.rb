@@ -28,10 +28,11 @@ module Mjai
             @ag_oya = @ag_chicha = @players[0]
             @ag_bakaze = Pai.new("E")
             @ag_honba = 0
+            @ag_kyotaku = 0
             while !self.game_finished?
               play_kyoku()
             end
-            do_action({:type => :end_game})
+            do_action({:type => :end_game, :scores => get_final_scores()})
             return true
           rescue ValidationError => ex
             do_action({:type => :error, :message => ex.message})
@@ -51,6 +52,7 @@ module Mjai
                 :bakaze => @ag_bakaze,
                 :kyoku => (4 + @ag_oya.id - @ag_chicha.id) % 4 + 1,
                 :honba => @ag_honba,
+                :kyotaku => @ag_kyotaku,
                 :oya => @ag_oya,
                 :dora_marker => dora_marker,
                 :tehais => tehais,
@@ -67,7 +69,8 @@ module Mjai
         
         # 摸打
         def mota()
-          reach = false
+          reach_pending = false
+          kandora_pending = false
           tsumo_actor = @actor
           actions = [Action.new({:type => :tsumo, :actor => @actor, :pai => @pipais.pop()})]
           while !actions.empty?
@@ -79,27 +82,43 @@ module Mjai
               raise("should not happen") if actions.size != 1
               action = actions[0]
               responses = do_action(action)
+              next_actions = nil
               case action.type
                 when :daiminkan, :kakan, :ankan
+                  if action.type == :ankan
+                    add_dora()
+                  end
                   # Actually takes one from wanpai and moves one pai from pipai to wanpai,
                   # but it's equivalent to taking from pipai.
-                  actions =
+                  next_actions =
                     [Action.new({:type => :tsumo, :actor => action.actor, :pai => @pipais.pop()})]
-                  # TODO Add dora.
-                  next
+                  # TODO Handle 4 kans.
                 when :reach
-                  reach = true
+                  reach_pending = true
               end
-              actions = choose_actions(responses)
-              if reach && (actions.empty? || ![:dahai, :hora].include?(actions[0].type))
+              next_actions ||= choose_actions(responses)
+              if reach_pending &&
+                  (next_actions.empty? || ![:dahai, :hora].include?(next_actions[0].type))
+                @ag_kyotaku += 1
                 deltas = [0, 0, 0, 0]
                 deltas[tsumo_actor.id] = -1000
                 do_action({
-                    :type => :reach_accepted,:actor => tsumo_actor,
+                    :type => :reach_accepted,
+                    :actor => tsumo_actor,
                     :deltas => deltas,
                     :scores => get_scores(deltas),
                 })
+                reach_pending = false
               end
+              if kandora_pending &&
+                  !next_actions.empty? && [:dahai, :tsumo].include?(next_actions[0].type)
+                add_dora()
+                kandora_pending = false
+              end
+              if [:daiminkan, :kakan].include?(action.type)
+                kandora_pending = true
+              end
+              actions = next_actions
             end
           end
         end
@@ -119,22 +138,24 @@ module Mjai
         end
         
         def process_hora(actions)
-          # TODO ダブロンの上家取り
-          for action in actions
-            hora = get_hora(action)
+          tsumibo = self.honba
+          for action in actions.sort_by(){ |a| distance(a.actor, a.target) }
+            uradora_markers = @wanpais.pop(self.dora_markers.size)
+            hora = get_hora(action, {
+                :uradora_markers => uradora_markers,
+                :previous_action => self.previous_action,
+            })
             raise("no yaku") if !hora.valid?
             deltas = [0, 0, 0, 0]
-            # TODO 積み棒
-            deltas[action.actor.id] += hora.points + self.honba * 300
-            deltas[action.actor.id] += self.players.select(){ |pl| pl.reach? }.size * 1000
+            deltas[action.actor.id] += hora.points + tsumibo * 300 + @ag_kyotaku * 1000
             if hora.hora_type == :tsumo
               for player in self.players
                 next if player == action.actor
                 deltas[player.id] -=
-                    ((player == self.oya ? hora.oya_payment : hora.ko_payment) + self.honba * 100)
+                    ((player == self.oya ? hora.oya_payment : hora.ko_payment) + tsumibo * 100)
               end
             else
-              deltas[action.target.id] -= (hora.points + self.honba * 300)
+              deltas[action.target.id] -= (hora.points + tsumibo * 300)
             end
             do_action({
               :type => action.type,
@@ -142,6 +163,7 @@ module Mjai
               :target => action.target,
               :pai => action.pai,
               :hora_tehais => action.actor.tehais,
+              :uradora_markers => uradora_markers,
               :yakus => hora.yakus,
               :fu => hora.fu,
               :fan => hora.fan,
@@ -149,6 +171,9 @@ module Mjai
               :deltas => deltas,
               :scores => get_scores(deltas),
             })
+            # Only kamicha takes them in case of daburon.
+            tsumibo = 0
+            @ag_kyotaku = 0
           end
           update_oya(actions.any?(){ |a| a.actor == self.oya }, false)
         end
@@ -208,6 +233,11 @@ module Mjai
           end
         end
         
+        def add_dora()
+          dora_marker = @wanpais.pop()
+          do_action({:type => :dora, :dora_marker => dora_marker})
+        end
+        
         def game_finished?
           if @last
             return true
@@ -215,6 +245,13 @@ module Mjai
             @last = true if @game_type == :one_kyoku
             return false
           end
+        end
+        
+        def get_final_scores()
+          # The winner takes remaining kyotaku.
+          deltas = [0, 0, 0, 0]
+          deltas[self.ranked_players[0].id] = @ag_kyotaku * 1000
+          return get_scores(deltas)
         end
         
         def expect_response_from?(player)
