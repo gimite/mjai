@@ -128,7 +128,6 @@ loadAction = (action) ->
     when "start_kyoku"
       kyoku =
         actions: []
-        doraMarkers: [action.dora_marker]
         bakaze: action.bakaze
         kyokuNum: action.kyoku
         honba: action.honba
@@ -136,6 +135,7 @@ loadAction = (action) ->
       prevBoard = board
       board =
         players: [{}, {}, {}, {}]
+        doraMarkers: [action.dora_marker]
       initPlayers(board)
       for i in [0...4]
         board.players[i].tehais = action.tehais[i]
@@ -198,7 +198,7 @@ loadAction = (action) ->
   
   if kyoku
     for i in [0...4]
-      if i != action.actor
+      if action.actor != undefined && i != action.actor
         ripai(board.players[i])
     if action.type != "log"
       action.board = board
@@ -311,8 +311,8 @@ renderAction = (action) ->
         renderPais(pais, furoView.pais, poses)
         --j
   wanpais = ["?", "?", "?", "?", "?", "?"]
-  for i in [0...kyoku.doraMarkers.length]
-    wanpais[i + 2] = kyoku.doraMarkers[i]
+  for i in [0...action.board.doraMarkers.length]
+    wanpais[i + 2] = action.board.doraMarkers[i]
   renderPais(wanpais, Dytem.wanpais)
 
 getCurrentKyoku = ->
