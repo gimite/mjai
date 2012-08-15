@@ -123,8 +123,10 @@ module Mjai
         
         # Next pai in terms of dora derivation.
         def succ
-          if (@type == "t" && @number == 7) || (@type != "t" && @number == 9)
+          if (@type == "t" && @number == 4) || (@type != "t" && @number == 9)
             number = 1
+          elsif @type == "t" && @number == 7
+            number = 5
           else
             number = @number + 1
           end
