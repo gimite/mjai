@@ -22,6 +22,7 @@ BAKAZE_TO_STR =
 kyokus = []
 currentKyokuId = 0
 currentActionId = 0
+currentViewpoint = 0
 playerInfos = [{}, {}, {}, {}]
 
 parsePai = (pai) ->
@@ -272,9 +273,14 @@ renderAction = (action) ->
   kyoku = getCurrentKyoku()
   for i in [0...4]
     player = action.board.players[i]
-    view = Dytem.players.at(i)
+    view = Dytem.players.at((i-currentViewpoint+4)%4)
     infoView = Dytem.playerInfos.at(i)
     infoView.score.text(player.score)
+    if i == currentViewpoint
+      infoView.viewpoint.text("+")
+    else
+      infoView.viewpoint.text("")
+
     if !player.tehais
       renderPais([], view.tehais)
       view.tsumoPai.hide()
@@ -353,7 +359,11 @@ $ ->
     currentKyokuId = parseInt($("#kyokuSelector").val())
     currentActionId = 0
     renderCurrentAction()
-  
+
+  $("#viewpoint-button").click ->
+    currentViewpoint = (currentViewpoint + 1) % 4
+    renderCurrentAction()
+
   for action in allActions
     loadAction(action)
 
