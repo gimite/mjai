@@ -273,13 +273,10 @@ renderAction = (action) ->
   kyoku = getCurrentKyoku()
   for i in [0...4]
     player = action.board.players[i]
-    view = Dytem.players.at((i-currentViewpoint+4)%4)
+    view = Dytem.players.at((i - currentViewpoint + 4) % 4)
     infoView = Dytem.playerInfos.at(i)
     infoView.score.text(player.score)
-    if i == currentViewpoint
-      infoView.viewpoint.text("+")
-    else
-      infoView.viewpoint.text("")
+    infoView.viewpoint.text(if i == currentViewpoint then "+" else "")
 
     if !player.tehais
       renderPais([], view.tehais)
