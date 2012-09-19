@@ -66,9 +66,6 @@ module Mjai
           update_state(action)
           
           @on_action.call(action) if @on_action
-          p [:first_turn, @first_turn]  # kari
-          p [:rinshan, players.map(){ |pl| pl.rinshan? }]  # kari
-          p [:ippatsu_chance, players.map(){ |pl| pl.ippatsu_chance? }]  # kari
           
           responses = (0...4).map() do |i|
             @players[i].respond_to_action(action_in_view(action, i))

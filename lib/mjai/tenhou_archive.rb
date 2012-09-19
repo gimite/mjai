@@ -112,7 +112,11 @@ module Mjai
                   tehais = (elem["hai"].split(/,/) - [elem["machi"]]).map(){ |pid| pid_to_pai(pid) }
                   points_params = get_points_params(elem["sc"])
                   (fu, hora_points, _) = elem["ten"].split(/,/).map(&:to_i)
-                  fan = elem["yaku"].split(/,/).each_slice(2).map(){ |y, f| f.to_i() }.inject(0, :+)
+                  if elem["yakuman"]
+                    fan = Hora::YAKUMAN_FAN
+                  else
+                    fan = elem["yaku"].split(/,/).each_slice(2).map(){ |y, f| f.to_i() }.inject(0, :+)
+                  end
                   uradora_markers = (elem["doraHaiUra"] || "").
                       split(/,/).map(){ |pid| pid_to_pai(pid) }
                   # TODO Fill yaku field.
