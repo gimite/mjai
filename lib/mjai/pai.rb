@@ -57,6 +57,17 @@ module Mjai
             else
               raise(ArgumentError, "Wrong number of args.")
           end
+          if @type != nil || @number != nil
+            if !["m", "p", "s", "t"].include?(@type)
+              raise("Bad type: %p" % @type)
+            end
+            if !@number.is_a?(Integer)
+              raise("number must be Integer: %p" % @number)
+            end
+            if @red != true && @red != false
+              raise("red must be boolean: %p" % @red)
+            end
+          end
         end
         
         def to_s()
@@ -75,6 +86,16 @@ module Mjai
         
         attr_reader(:type, :number)
         
+        def valid?
+          if @type == nil && @number == nil
+            return true
+          elsif @type == "t"
+            return (1..7).include?(@number)
+          else
+            return (1..9).include?(@number)
+          end
+        end
+        
         def red?
           return @red
         end
@@ -89,6 +110,10 @@ module Mjai
         
         def sangenpai?
           return @type == "t" && (5..7).include?(@number)
+        end
+        
+        def next(n)
+          return Pai.new(@type, @number + n)
         end
         
         def data

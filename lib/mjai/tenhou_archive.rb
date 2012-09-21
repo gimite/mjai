@@ -98,7 +98,10 @@ module Mjai
                     when "2"
                       deltas = [0, 0, 0, 0]
                       deltas[actor.id] = -1000
-                      scores = elem["ten"].split(/,/).map(){ |s| s.to_i() * 100 }
+                      # Old Tenhou archive doesn't have "ten" attribute. Calculates it manually.
+                      scores = (0...4).map() do |i|
+                        self.players[i].score + deltas[i]
+                      end
                       return do_action({
                           :type => :reach_accepted,
                           :actor => actor,
@@ -405,8 +408,13 @@ module Mjai
           @doc = Nokogiri.XML(@xml)
           elems = @doc.root.children
           elems.each_with_index() do |elem, j|
-            if on_tenhou_event(elem, elems[j + 1]) == :broken
-              break  # Something is wrong.
+            begin
+              if on_tenhou_event(elem, elems[j + 1]) == :broken
+                break  # Something is wrong.
+              end
+            rescue
+              $stderr.puts("While interpreting element: %s" % elem)
+              raise
             end
           end
         end
