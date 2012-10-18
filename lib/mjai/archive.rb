@@ -41,6 +41,10 @@ module Mjai
           return false
         end
         
+        def inspect
+          return '#<%p:path=%p>' % [self.class, self.path]
+        end
+        
     end
     
 end
