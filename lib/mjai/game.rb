@@ -213,10 +213,18 @@ module Mjai
           case response.type
             
             when :dahai
+              
               validate_fields_exist(response, [:pai, :tsumogiri])
+              if action.actor.reach?
+                # possible_dahais check doesn't subsume this check. Consider karagiri
+                # (with tsumogiri=false) after reach.
+                validate(response.tsumogiri, "tsumogiri must be true after reach.")
+              end
               validate(
                   response.actor.possible_dahais.include?(response.pai),
-                  "Cannot dahai this pai.")
+                  "Cannot dahai this pai. The pai is not in the tehais, or it's kuikae.")
+              
+              # Validates that pai and tsumogiri fields are consistent.
               if [:tsumo, :reach].include?(action.type)
                 if response.tsumogiri
                   tsumo_pai = response.actor.tehais[-1]

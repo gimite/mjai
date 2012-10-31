@@ -287,6 +287,9 @@ module Mjai
         end
         
         def possible_dahais(action = @game.current_action, tehais = @tehais)
+          if self.reach? && action.type == :tsumo && action.actor == self
+            return [action.pai]
+          end
           # Excludes kuikae.
           if action.type == :chi && action.actor == self
             if action.consumed[1].number == action.consumed[0].number + 1
