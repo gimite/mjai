@@ -291,8 +291,9 @@ module Mjai
             return [action.pai]
           end
           # Excludes kuikae.
+          consumed = action.consumed ? action.consumed.sort() : nil
           if action.type == :chi && action.actor == self
-            if action.consumed[1].number == action.consumed[0].number + 1
+            if consumed[1].number == consumed[0].number + 1
               forbidden_rnums = [-1, 2]
             else
               forbidden_rnums = [1]
@@ -304,7 +305,7 @@ module Mjai
           end
           cands = tehais.uniq()
           if !forbidden_rnums.empty?
-            key_pai = action.consumed[0]
+            key_pai = consumed[0]
             return cands.select() do |pai|
               !(pai.type == key_pai.type &&
                   forbidden_rnums.any?(){ |rn| key_pai.number + rn == pai.number })
