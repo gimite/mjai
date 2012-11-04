@@ -266,9 +266,10 @@ renderAction = (action) ->
   #console.log(action.type, action)
   displayAction = {}
   for k, v of action
-    if k != "board"
+    if k != "board" && k != "log"
       displayAction[k] = v
   $("#action-label").text(JSON.stringify(displayAction))
+  $("#log-label").text(action.log || "")
   #dumpBoard(action.board)
   kyoku = getCurrentKyoku()
   for i in [0...4]

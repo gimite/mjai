@@ -104,3 +104,8 @@ $player-height: $pai-height * 4 + $ho-tehai-margin;
   top: 0px;
   padding: 8px;
 }
+
+.log-label {
+  font-family: monospace;
+  white-space: pre;
+}
