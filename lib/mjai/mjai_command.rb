@@ -1,6 +1,6 @@
 require "optparse"
 
-require "mjai/tcp_game_server"
+require "mjai/tcp_active_game_server"
 require "mjai/tcp_client_game"
 require "mjai/tsumogiri_player"
 require "mjai/shanten_player"
@@ -30,7 +30,7 @@ module Mjai
                   else
                     num_games = opts["games"].to_i()
                   end
-                  server = TCPGameServer.new({
+                  server = TCPActiveGameServer.new({
                       :host => opts["host"],
                       :port => opts["port"].to_i(),
                       :room => opts["room"],
