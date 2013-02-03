@@ -38,17 +38,10 @@ module Mjai
                   return create_action({:type => :dahai, :pai => action.pai, :tsumogiri => true})
                 end
                 
-                if action.type == :tsumo && self.game.num_pipais > 0
-                  for pai in self.tehais
-                    if self.tehais.select(){ |tp| tp == pai }.size >= 4
-                      return create_action({:type => :ankan, :consumed => [pai] * 4})
-                    end
-                  end
-                  pon = self.furos.find(){ |f| f.type == :pon && f.taken == action.pai }
-                  if pon
-                    return create_action(
-                        {:type => :kakan, :pai => action.pai, :consumed => [action.pai] * 3})
-                  end
+                # Ankan, kakan
+                furo_actions = self.possible_furo_actions
+                if !furo_actions.empty?
+                  return furo_actions[0]
                 end
                 
                 sutehai_cands = []
