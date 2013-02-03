@@ -1,12 +1,13 @@
 require "mjai/active_game"
 require "mjai/tcp_game_server"
+require "mjai/confidence_interval"
 
 
 module Mjai
     
     class TCPActiveGameServer < TCPGameServer
         
-        Statistics = Struct.new(:num_games, :total_rank, :total_score)
+        Statistics = Struct.new(:num_games, :total_rank, :total_score, :ranks)
         
         def initialize(params)
           super
@@ -45,17 +46,22 @@ module Mjai
               game.ranked_players.map(){ |pl| "%s:%d" % [pl.name, pl.score] }.join(" "),
           ])
           for player in self.players
-            @name_to_stat[player.name] ||= Statistics.new(0, 0, 0)
+            @name_to_stat[player.name] ||= Statistics.new(0, 0, 0, [])
             @name_to_stat[player.name].num_games += 1
             @name_to_stat[player.name].total_score += player.score
             @name_to_stat[player.name].total_rank += player.rank
+            @name_to_stat[player.name].ranks.push(player.rank)
           end
           names = self.players.map(){ |pl| pl.name }.sort().uniq()
           print("Average rank:")
           for name in names
-            print(" %s:%.3f" % [
+            stat = @name_to_stat[name]
+            rank_conf_interval = ConfidenceInterval.calculate(stat.ranks, :min => 1.0, :max => 4.0)
+            print(" %s:%.3f [%.3f, %.3f]" % [
                 name,
-                @name_to_stat[name].total_rank.to_f() / @name_to_stat[name].num_games,
+                stat.total_rank.to_f() / stat.num_games,
+                rank_conf_interval[0],
+                rank_conf_interval[1],
             ])
           end
           puts()
