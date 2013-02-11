@@ -1,3 +1,5 @@
+# Reference: http://tenhou.net/1/script/tenhou.js
+
 require "zlib"
 require "uri"
 require "nokogiri"
@@ -14,6 +16,23 @@ module Mjai
         
         module Util
             
+            YAKU_ID_TO_NAME = [
+              :menzenchin_tsumoho, :reach, :ippatsu, :chankan, :rinshankaiho,
+              :haiteiraoyue, :hoteiraoyui, :pinfu, :tanyaochu, :ipeko,
+              :jikaze, :jikaze, :jikaze, :jikaze,
+              :bakaze, :bakaze, :bakaze, :bakaze,
+              :sangenpai, :sangenpai, :sangenpai,
+              :double_reach, :chitoitsu, :honchantaiyao, :ikkitsukan, :sanshokudojun,
+              :sanshokudoko, :sankantsu, :toitoiho, :sananko, :shosangen, :honroto,
+              :ryanpeko, :junchantaiyao, :honiso,
+              :chiniso,
+              :renho,
+              :tenho, :chiho, :daisangen, :suanko, :suanko, :tsuiso,
+              :ryuiso, :chinroto, :churenpoton, :churenpoton, :kokushimuso,
+              :kokushimuso, :daisushi, :shosushi, :sukantsu,
+              :dora, :uradora, :akadora,
+            ]
+
             def on_tenhou_event(elem, next_elem = nil)
               verify_tenhou_tehais() if @first_kyoku_started
               case elem.name
@@ -122,7 +141,11 @@ module Mjai
                   end
                   uradora_markers = (elem["doraHaiUra"] || "").
                       split(/,/).map(){ |pid| pid_to_pai(pid) }
-                  # TODO Fill yaku field.
+                  yakus = elem["yaku"].
+                      split(/,/).
+                      enum_for(:each_slice, 2).
+                      map(){ |y, f| [YAKU_ID_TO_NAME[y.to_i()], f.to_i()] }.
+                      select(){ |y, f| f != 0 }
                   do_action({
                     :type => :hora,
                     :actor => self.players[elem["who"].to_i()],
@@ -132,6 +155,7 @@ module Mjai
                     :uradora_markers => uradora_markers,
                     :fu => fu,
                     :fan => fan,
+                    :yakus => yakus,
                     :hora_points => hora_points,
                     :deltas => points_params[:deltas],
                     :scores => points_params[:scores],
