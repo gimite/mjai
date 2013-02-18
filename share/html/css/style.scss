@@ -43,24 +43,28 @@ $player-height: $pai-height * 4 + $ho-tehai-margin;
   left: 0px;
   top: $board-width - $player-height;
   -webkit-transform: rotate(0deg);
+  transform: rotate(0deg);
 }
 
 .player-1 {
   left: ($board-width - $player-height / 2) - $board-width / 2;
   top: $board-width / 2 - $player-height / 2;
   -webkit-transform: rotate(270deg);
+  transform: rotate(270deg);
 }
 
 .player-2 {
   left: 0px;
   top: 0px;
   -webkit-transform: rotate(180deg);
+  transform: rotate(180deg);
 }
 
 .player-3 {
   left: $player-height / 2 - $board-width / 2;
   top: $board-width / 2 - $player-height / 2;
   -webkit-transform: rotate(90deg);
+  transform: rotate(90deg);
 }
 
 .wanpais-container {
