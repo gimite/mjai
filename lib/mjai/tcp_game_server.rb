@@ -31,6 +31,7 @@ module Mjai
             while true
               Thread.new(@server.accept()) do |socket|
                 socket.sync = true
+                socket.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1)
                 send(socket, {
                     "type" => "hello",
                     "protocol" => "mjsonp",

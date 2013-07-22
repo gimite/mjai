@@ -22,6 +22,7 @@ module Mjai
           uri = URI.parse(@params[:url])
           TCPSocket.open(uri.host, uri.port) do |socket|
             socket.sync = true
+            socket.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1)
             socket.each_line() do |line|
               puts("<-\t%s" % line.chomp())
               action_json = line.chomp()
