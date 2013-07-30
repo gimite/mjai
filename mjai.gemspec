@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   
   s.name = "mjai"
-  s.version = "0.0.1"
+  s.version = "0.0.2"
   s.authors = ["Hiroshi Ichikawa"]
   s.email = ["gimite+github@gmail.com"]
   s.summary = "Game server for Japanese Mahjong AI."
