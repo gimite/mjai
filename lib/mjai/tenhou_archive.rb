@@ -141,7 +141,7 @@ module Mjai
                   end
                   uradora_markers = (elem["doraHaiUra"] || "").
                       split(/,/).map(){ |pid| pid_to_pai(pid) }
-                  yakus = elem["yaku"].
+                  yakus = (elem["yaku"] || elem["yakuman"]).
                       split(/,/).
                       enum_for(:each_slice, 2).
                       map(){ |y, f| [YAKU_ID_TO_NAME[y.to_i()], f.to_i()] }.

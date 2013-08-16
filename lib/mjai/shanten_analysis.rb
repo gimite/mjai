@@ -1,3 +1,4 @@
+require "set"
 require "mjai/pai"
 require "mjai/mentsu"
 
