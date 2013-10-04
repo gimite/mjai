@@ -216,21 +216,42 @@ module Mjai
           if renchan
             @ag_oya = self.oya
           else
-            if self.oya == @players[3]
-              @ag_bakaze = @ag_bakaze.succ
-              if (@game_type == :tonpu && @ag_bakaze == Pai.new("S")) ||
-                  (@game_type == :tonnan && @ag_bakaze == Pai.new("W"))
-                # TODO Consider 南入, etc.
-                @last = true
-              end
-            end
             @ag_oya = @players[(self.oya.id + 1) % 4]
+            @ag_bakaze = @ag_bakaze.succ if @ag_oya == @players[0]
           end
           if renchan || ryukyoku
             @ag_honba += 1
           else
             @ag_honba = 0
           end
+          case @game_type
+            when :tonpu
+              @last = decide_last(Pai.new("E"), renchan)
+            when :tonnan
+              @last = decide_last(Pai.new("S"), renchan)
+          end
+        end
+        
+        def decide_last(last_bakaze, tenpai_renchan)
+          if @players.any? { |pl| pl.score < 0 }
+            return true
+          end
+
+          if @ag_bakaze == last_bakaze.succ.succ
+            return true
+          end
+          if @ag_bakaze == last_bakaze.succ
+            return @players.any? { |pl| pl.score >= 30000 }
+          end
+
+          # Agari-yame, tenpai-yame
+          if @ag_bakaze == last_bakaze && @ag_oya == @players[3] &&
+              tenpai_renchan && @players[3].score >= 30000 &&
+              (0..2).all? { |i| @players[i].score < @players[3].score }
+            return true
+          end
+
+          return false
         end
         
         def add_dora()
