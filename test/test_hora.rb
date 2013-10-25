@@ -365,6 +365,22 @@ class TC_Hora < Test::Unit::TestCase
       
     end
     
+    def test_fu()
+
+      assert_equal(new_hora({
+        :tehais => Pai.parse_pais("234678m345p3477s"),
+        :taken => Pai.new("5s"),
+        :hora_type => :ron,
+      }).fu, 30)
+
+      assert_equal(new_hora({
+        :tehais => Pai.parse_pais("234678m345p3477s"),
+        :taken => Pai.new("5s"),
+        :hora_type => :tsumo,
+      }).fu, 20)
+
+    end
+    
     def test_points()
       # TODO
     end
