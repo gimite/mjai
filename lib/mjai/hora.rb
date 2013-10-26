@@ -329,7 +329,7 @@ module Mjai
                 else
                   fu = 20
                   fu += 10 if self.menzen? && @hora.hora_type == :ron
-                  fu += 2 if @hora.hora_type == :tsumo
+                  fu += 2 if @hora.hora_type == :tsumo && !pinfu?
                   for mentsu in @mentsus
                     mfu = BASE_FU_MAP[mentsu.type]
                     mfu *= 2 if mentsu.pais[0].yaochu?
