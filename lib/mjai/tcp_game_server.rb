@@ -11,6 +11,9 @@ module Mjai
     
     class TCPGameServer
         
+        class LocalError < StandardError
+        end
+
         def initialize(params)
           @params = params
           @server = TCPServer.open(params[:host], params[:port])
@@ -30,44 +33,51 @@ module Mjai
             start_default_players()
             while true
               Thread.new(@server.accept()) do |socket|
-                socket.sync = true
-                socket.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1)
-                send(socket, {
-                    "type" => "hello",
-                    "protocol" => "mjsonp",
-                    "protocol_version" => 1,
-                })
                 error = nil
                 begin
+                  socket.sync = true
+                  socket.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1)
+                  send(socket, {
+                      "type" => "hello",
+                      "protocol" => "mjsonp",
+                      "protocol_version" => 1,
+                  })
                   line = socket.gets()
+                  if !line
+                    raise(LocalError, "Connection closed")
+                  end
                   puts("server <- player ?\t#{line}")
                   message = JSON.parse(line)
-                  if message["type"] == "join" && message["name"] && message["room"]
-                    if message["room"] == @params[:room]
-                      @mutex.synchronize() do
-                        if @players.size < self.num_tcp_players
-                          @players.push(TCPPlayer.new(socket, message["name"]))
-                          puts("Waiting for %s more players..." % (self.num_tcp_players - @players.size))
-                          if @players.size == self.num_tcp_players
-                            Thread.new(){ process_one_game() }
-                          end
-                        else
-                          error = "The room is busy. Retry after a while."
-                        end
-                      end
-                    else
-                      error = "No such room. Available room: %s" % @params[:room]
+                  if message["type"] != "join" || !message["name"] || !message["room"]
+                    raise(LocalError, "Expected e.g. %s" %
+                        JSON.dump({"type" => "join", "name" => "noname", "room" => @params[:room]}))
+                  end
+                  if message["room"] != @params[:room]
+                    raise(LocalError, "No such room. Available room: %s" % @params[:room])
+                  end
+                  @mutex.synchronize() do
+                    if @players.size >= self.num_tcp_players
+                      raise(LocalError, "The room is busy. Retry after a while.")
                     end
-                  else
-                    error = "Expected e.g. %s" %
-                        JSON.dump({"type" => "join", "name" => "noname", "room" => @params[:room]})
+                    @players.push(TCPPlayer.new(socket, message["name"]))
+                    puts("Waiting for %s more players..." % (self.num_tcp_players - @players.size))
+                    if @players.size == self.num_tcp_players
+                      Thread.new(){ process_one_game() }
+                    end
                   end
                 rescue JSON::ParserError => ex
                   error = "JSON syntax error: %s" % ex.message
+                rescue SystemCallError => ex
+                  error = ex.message
+                rescue LocalError => ex
+                  error = ex.message
                 end
                 if error
-                  send(socket, {"type" => "error", "message" => error})
-                  socket.close()
+                  begin
+                    send(socket, {"type" => "error", "message" => error})
+                    socket.close()
+                  rescue SystemCallError
+                  end
                 end
               end
             end
