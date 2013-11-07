@@ -222,7 +222,8 @@ module Mjai
               end
               validate(
                   response.actor.possible_dahais.include?(response.pai),
-                  "Cannot dahai this pai. The pai is not in the tehais, or it's kuikae.")
+                  "Cannot dahai this pai. The pai is not in the tehais, " +
+                  "it's kuikae, or it causes noten reach.")
               
               # Validates that pai and tsumogiri fields are consistent.
               if [:tsumo, :reach].include?(action.type)

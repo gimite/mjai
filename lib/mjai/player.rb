@@ -287,32 +287,53 @@ module Mjai
         end
         
         def possible_dahais(action = @game.current_action, tehais = @tehais)
+
           if self.reach? && action.type == :tsumo && action.actor == self
+
+            # Only tsumogiri is allowed after reach.
             return [action.pai]
-          end
-          # Excludes kuikae.
-          consumed = action.consumed ? action.consumed.sort() : nil
-          if action.type == :chi && action.actor == self
-            if consumed[1].number == consumed[0].number + 1
-              forbidden_rnums = [-1, 2]
+
+          elsif action.type == :reach
+
+            # Tehais after the dahai must be tenpai just after reach.
+            result = []
+            for pai in tehais.uniq()
+              pais = tehais.dup()
+              pais.delete_at(pais.index(pai))
+              if ShantenAnalysis.new(pais, 0).shanten <= 0
+                result.push(pai)
+              end
+            end
+            return result
+
+          else
+
+            # Excludes kuikae.
+            consumed = action.consumed ? action.consumed.sort() : nil
+            if action.type == :chi && action.actor == self
+              if consumed[1].number == consumed[0].number + 1
+                forbidden_rnums = [-1, 2]
+              else
+                forbidden_rnums = [1]
+              end
+            elsif action.type == :pon && action.actor == self
+              forbidden_rnums = [0]
             else
-              forbidden_rnums = [1]
+              forbidden_rnums = []
             end
-          elsif action.type == :pon && action.actor == self
-            forbidden_rnums = [0]
-          else
-            forbidden_rnums = []
-          end
-          cands = tehais.uniq()
-          if !forbidden_rnums.empty?
-            key_pai = consumed[0]
-            return cands.select() do |pai|
-              !(pai.type == key_pai.type &&
-                  forbidden_rnums.any?(){ |rn| key_pai.number + rn == pai.number })
+            cands = tehais.uniq()
+            if !forbidden_rnums.empty?
+              key_pai = consumed[0]
+              return cands.select() do |pai|
+                !(pai.type == key_pai.type &&
+                    forbidden_rnums.any?(){ |rn| key_pai.number + rn == pai.number })
+              end
+            else
+              return cands
             end
-          else
-            return cands
+
           end
+
         end
         
         def possible_dahais_after_furo(action)
