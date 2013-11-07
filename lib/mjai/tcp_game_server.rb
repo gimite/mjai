@@ -40,7 +40,7 @@ module Mjai
                   send(socket, {
                       "type" => "hello",
                       "protocol" => "mjsonp",
-                      "protocol_version" => 1,
+                      "protocol_version" => 2,
                   })
                   line = socket.gets()
                   if !line

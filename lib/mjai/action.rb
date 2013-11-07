@@ -14,6 +14,8 @@ module Mjai
           [:consumed, :pais],
           [:pais, :pais],
           [:tsumogiri, :boolean],
+          [:possible_actions, :actions],
+          [:cannot_dahai, :pais],
           [:id, :number],
           [:bakaze, :pai],
           [:kyoku, :number],

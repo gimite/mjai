@@ -18,19 +18,24 @@ module Mjai
         end
         
         def self.from_json(json, game)
-          hash = JSON.parse(json)
+          plain = JSON.parse(json)
           begin
-            validate(hash.is_a?(Hash), "The response must be an object.")
-            fields = {}
-            for name, type in @@field_specs
-              plain = hash[name.to_s()]
-              next if plain == nil
-              fields[name] = plain_to_obj(plain, type, name.to_s(), game)
-            end
-            return new(fields)
+            return from_plain(plain, nil, game)
           rescue ValidationError => ex
             raise(ValidationError, "%s JSON: %s" % [ex.message, json])
           end
+        end
+
+        def self.from_plain(plain, name, game)
+          validate(plain.is_a?(Hash), "%s must be an object." % (name || "The response"))
+          fields = {}
+          for field_name, type in @@field_specs
+            field_plain = plain[field_name.to_s()]
+            next if field_plain == nil
+            fields[field_name] = plain_to_obj(
+                field_plain, type, name ? "#{name}.#{field_name}" : field_name.to_s(), game)
+          end
+          return new(fields)
         end
         
         def self.plain_to_obj(plain, type, name, game)
@@ -68,6 +73,8 @@ module Mjai
                   "#{name} must be an array of [String, Integer].")
               validate(!plain[0].empty?, "#{name}[0] must not be empty.")
               return [plain[0].intern(), plain[1]]
+            when :action
+              return from_plain(plain, name, game)
             when :numbers
               return plains_to_objs(plain, :number, name, game)
             when :strings
@@ -82,6 +89,8 @@ module Mjai
               return plains_to_objs(plain, :pais, name, game)
             when :yakus
               return plains_to_objs(plain, :yaku, name, game)
+            when :actions
+              return plains_to_objs(plain, :action, name, game)
             else
               raise("unknown type")
           end
@@ -114,6 +123,10 @@ module Mjai
         attr_reader(:fields)
         
         def to_json()
+          return JSON.dump(to_plain())
+        end
+        
+        def to_plain()
           hash = {}
           for name, type in @@field_specs
             obj = @fields[name]
@@ -129,6 +142,8 @@ module Mjai
                 plain = obj.map(){ |o| o.map(){ |a| a.to_s() } }
               when :yakus
                 plain = obj.map(){ |s, n| [s.to_s(), n] }
+              when :actions
+                plain = obj.map(){ |a| a.to_plain() }
               when :number, :numbers, :string, :strings, :boolean, :booleans
                 plain = obj
               else
@@ -136,9 +151,9 @@ module Mjai
             end
             hash[name.to_s()] = plain
           end
-          return JSON.dump(hash)
+          return hash
         end
-        
+
         alias to_s to_json
         
         def merge(hash)

@@ -131,8 +131,29 @@ module Mjai
               end
               return action.merge({:tehais => tehais_list})
             when :tsumo
-              pai = action.actor == player ? action.pai : Pai::UNKNOWN
-              return action.merge({:pai => pai})
+              if action.actor == player
+                return action.merge({
+                    :possible_actions => expect_response_from?(player) ? player.possible_actions : nil,
+                })
+              else
+                return action.merge({:pai => Pai::UNKNOWN})
+              end
+            when :dahai, :kakan
+              if action.actor != player
+                return action.merge({
+                    :possible_actions => expect_response_from?(player) ? player.possible_actions : nil,
+                })
+              else
+                return action
+              end
+            when :chi, :pon
+              if action.actor == player
+                return action.merge({
+                    :cannot_dahai => expect_response_from?(player) ? player.kuikae_dahais : nil,
+                })
+              else
+                return action
+              end
             else
               return action
           end

@@ -197,6 +197,27 @@ module Mjai
               @game.get_hora(hora_action, {:previous_action => action}).valid? &&
               (hora_type == :tsumo || !self.furiten?)
         end
+
+        # Possible actions except for dahai.
+        def possible_actions
+          action = @game.current_action
+          result = []
+          if (action.type == :tsumo && action.actor == self) ||
+              ([:dahai, :kakan].include?(action.type) && action.actor != self)
+            if can_hora?
+              result.push(create_action({
+                  :type => :hora,
+                  :target => action.actor,
+                  :pai => action.pai,
+              }))
+            end
+            if can_reach?
+              result.push(create_action({:type => :reach}))
+            end
+          end
+          result += self.possible_furo_actions
+          return result
+        end
         
         def possible_furo_actions
           
@@ -309,31 +330,34 @@ module Mjai
           else
 
             # Excludes kuikae.
-            consumed = action.consumed ? action.consumed.sort() : nil
-            if action.type == :chi && action.actor == self
-              if consumed[1].number == consumed[0].number + 1
-                forbidden_rnums = [-1, 2]
-              else
-                forbidden_rnums = [1]
-              end
-            elsif action.type == :pon && action.actor == self
-              forbidden_rnums = [0]
-            else
-              forbidden_rnums = []
-            end
-            cands = tehais.uniq()
-            if !forbidden_rnums.empty?
-              key_pai = consumed[0]
-              return cands.select() do |pai|
-                !(pai.type == key_pai.type &&
-                    forbidden_rnums.any?(){ |rn| key_pai.number + rn == pai.number })
-              end
-            else
-              return cands
-            end
+            return tehais.uniq() - kuikae_dahais(action, tehais)
 
           end
 
+        end
+
+        def kuikae_dahais(action = @game.current_action, tehais = @tehais)
+          consumed = action.consumed ? action.consumed.sort() : nil
+          if action.type == :chi && action.actor == self
+            if consumed[1].number == consumed[0].number + 1
+              forbidden_rnums = [-1, 2]
+            else
+              forbidden_rnums = [1]
+            end
+          elsif action.type == :pon && action.actor == self
+            forbidden_rnums = [0]
+          else
+            forbidden_rnums = []
+          end
+          if forbidden_rnums.empty?
+            return []
+          else
+            key_pai = consumed[0]
+            return tehais.uniq().select() do |pai|
+              pai.type == key_pai.type &&
+                  forbidden_rnums.any?(){ |rn| key_pai.number + rn == pai.number }
+            end
+          end
         end
         
         def possible_dahais_after_furo(action)
