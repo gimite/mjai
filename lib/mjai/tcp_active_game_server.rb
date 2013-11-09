@@ -1,6 +1,7 @@
 require "mjai/active_game"
 require "mjai/tcp_game_server"
 require "mjai/confidence_interval"
+require "mjai/file_converter"
 
 
 module Mjai
@@ -26,6 +27,8 @@ module Mjai
             mjson_path = nil
           end
           
+          game = nil
+          success = false
           maybe_open(mjson_path, "w") do |mjson_out|
             mjson_out.sync = true if mjson_out
             game = ActiveGame.new(players)
@@ -38,8 +41,10 @@ module Mjai
               mjson_out.puts(action.to_json()) if mjson_out
             end
             success = game.play()
-            return [game, success]
           end
+
+          FileConverter.new().convert(mjson_path, "#{mjson_path}.html") if mjson_path
+          return [game, success]
           
         end
         
