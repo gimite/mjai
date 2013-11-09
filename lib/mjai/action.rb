@@ -37,6 +37,8 @@ module Mjai
           [:scores, :numbers],
           [:text, :string],
           [:message, :string],
+          [:log, :string],
+          [:logs, :strings],
         ])
         
     end

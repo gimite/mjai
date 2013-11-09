@@ -187,9 +187,6 @@ loadAction = (action) ->
       null
     when "dora"
       board.doraMarkers = board.doraMarkers.concat([action.dora_marker])
-    when "log"
-      if kyoku
-        kyoku.actions[kyoku.actions.length - 1].log = action.text
     else
       throw "unknown action: #{action.type}"
   
@@ -201,10 +198,9 @@ loadAction = (action) ->
     for i in [0...4]
       if action.actor != undefined && i != action.actor
         ripai(board.players[i])
-    if action.type != "log"
-      action.board = board
-      #dumpBoard(board)
-      kyoku.actions.push(action)
+    action.board = board
+    #dumpBoard(board)
+    kyoku.actions.push(action)
 
 deleteTehai = (player, pai) ->
   player.tehais = player.tehais.concat([])
@@ -266,10 +262,10 @@ renderAction = (action) ->
   #console.log(action.type, action)
   displayAction = {}
   for k, v of action
-    if k != "board" && k != "log"
+    if k != "board" && k != "logs"
       displayAction[k] = v
   $("#action-label").text(JSON.stringify(displayAction))
-  $("#log-label").text(action.log || "")
+  $("#log-label").text((action.logs && action.logs[currentViewpoint]) || "")
   #dumpBoard(action.board)
   kyoku = getCurrentKyoku()
   for i in [0...4]

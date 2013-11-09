@@ -31,8 +31,11 @@ module Mjai
             game = ActiveGame.new(players)
             game.game_type = self.params[:game_type]
             game.on_action() do |action|
-              mjson_out.puts(action.to_json()) if mjson_out
               game.dump_action(action)
+            end
+            game.on_responses() do |action, responses|
+              # Logs on on_responses to include "logs" field.
+              mjson_out.puts(action.to_json()) if mjson_out
             end
             success = game.play()
             return [game, success]

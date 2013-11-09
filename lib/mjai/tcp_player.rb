@@ -21,7 +21,6 @@ module Mjai
           
           begin
             
-            return nil if action.type == :log
             puts("server -> player %d\t%s" % [self.id, action.to_json()])
             @socket.puts(action.to_json())
             line = nil
@@ -30,11 +29,10 @@ module Mjai
             end
             if line
               puts("server <- player %d\t%s" % [self.id, line])
-              response = Action.from_json(line.chomp(), self.game)
-              return response.type == :none ? nil : response
+              return Action.from_json(line.chomp(), self.game)
             else
               puts("server :  Player %d has disconnected." % self.id)
-              return nil
+              return Action.new({:type => :none})
             end
             
           rescue Timeout::Error

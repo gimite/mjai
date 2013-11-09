@@ -47,6 +47,10 @@ module Mjai
           @on_action = block
         end
         
+        def on_responses(&block)
+          @on_responses = block
+        end
+        
         # Executes the action and returns responses for it from players.
         def do_action(action)
           
@@ -54,24 +58,19 @@ module Mjai
             action = Action.new(action)
           end
           
-          if action.type != :log
-            for player in @players
-              if !player.log_text.empty?
-                do_action({:type => :log, :actor => player, :text => player.log_text})
-                player.clear_log()
-              end
-            end
-          end
-          
           update_state(action)
           
           @on_action.call(action) if @on_action
           
           responses = (0...4).map() do |i|
-            @players[i].respond_to_action(action_in_view(action, i))
+            @players[i].respond_to_action(action_in_view(action, i, true))
           end
+
+          action_with_logs = action.merge({:logs => responses.map(){ |r| r && r.log }})
+          responses = responses.map(){ |r| (!r || r.type == :none) ? nil : r.merge({:log => nil}) }
+          @on_responses.call(action_with_logs, responses) if @on_responses
+
           @previous_action = action
-          
           validate_responses(responses, action)
           return responses
           
@@ -112,13 +111,14 @@ module Mjai
           end
           
           for i in 0...4
-            @players[i].update_state(action_in_view(action, i))
+            @players[i].update_state(action_in_view(action, i, false))
           end
           
         end
         
-        def action_in_view(action, player_id)
+        def action_in_view(action, player_id, for_response)
           player = @players[player_id]
+          with_response_hint = for_response && expect_response_from?(player)
           case action.type
             when :start_game
               return action.merge({:id => player_id})
@@ -133,7 +133,8 @@ module Mjai
             when :tsumo
               if action.actor == player
                 return action.merge({
-                    :possible_actions => expect_response_from?(player) ? player.possible_actions : nil,
+                    :possible_actions =>
+                        with_response_hint ? player.possible_actions : nil,
                 })
               else
                 return action.merge({:pai => Pai::UNKNOWN})
@@ -141,7 +142,8 @@ module Mjai
             when :dahai, :kakan
               if action.actor != player
                 return action.merge({
-                    :possible_actions => expect_response_from?(player) ? player.possible_actions : nil,
+                    :possible_actions =>
+                        with_response_hint ? player.possible_actions : nil,
                 })
               else
                 return action
@@ -149,7 +151,8 @@ module Mjai
             when :chi, :pon
               if action.actor == player
                 return action.merge({
-                    :cannot_dahai => expect_response_from?(player) ? player.kuikae_dahais : nil,
+                    :cannot_dahai =>
+                        with_response_hint ? player.kuikae_dahais : nil,
                 })
               else
                 return action

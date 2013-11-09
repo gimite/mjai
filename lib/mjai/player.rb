@@ -8,10 +8,6 @@ module Mjai
     
     class Player
         
-        def initialize()
-          @log_text = ""
-        end
-        
         attr_reader(:id)
         attr_reader(:tehais)  # 手牌
         attr_reader(:furos)  # 副露
@@ -21,7 +17,6 @@ module Mjai
         attr_reader(:reach_state)
         attr_reader(:reach_ho_index)
         attr_reader(:attributes)
-        attr_reader(:log_text)
         attr_accessor(:name)
         attr_accessor(:game)
         attr_accessor(:score)
@@ -397,15 +392,6 @@ module Mjai
         
         def rank
           return @game.ranked_players.index(self) + 1
-        end
-        
-        def log(text)
-          @log_text << text << "\n"
-          puts(text)
-        end
-        
-        def clear_log()
-          @log_text = ""
         end
         
         def inspect
