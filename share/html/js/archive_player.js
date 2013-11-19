@@ -265,6 +265,9 @@ loadAction = function(action) {
     case "dora":
       board.doraMarkers = board.doraMarkers.concat([action.dora_marker]);
       break;
+    case "error":
+      null;
+      break;
     default:
       throw "unknown action: " + action.type;
   }

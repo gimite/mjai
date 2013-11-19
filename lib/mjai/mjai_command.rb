@@ -5,6 +5,7 @@ require "mjai/tcp_client_game"
 require "mjai/tsumogiri_player"
 require "mjai/shanten_player"
 require "mjai/file_converter"
+require "mjai/game_stats"
 
 
 module Mjai
@@ -42,13 +43,20 @@ module Mjai
                   server.run()
                 when "convert"
                   FileConverter.new().convert(argv.shift(), argv.shift())
+                when "stats"
+                  GameStats.print(argv)
                 else
                   $stderr.puts(
                       "Usage:\n" +
+                      "  #{$PROGRAM_NAME} server --port=PORT\n" +
                       "  #{$PROGRAM_NAME} server --port=PORT " +
                           "[PLAYER1_COMMAND] [PLAYER2_COMMAND] [...]\n" +
+                      "  #{$PROGRAM_NAME} stats 1.mjson [2.mjson] [...]\n" +
                       "  #{$PROGRAM_NAME} convert hoge.mjson hoge.html\n" +
-                      "  #{$PROGRAM_NAME} convert hoge.mjlog hoge.mjson\n")
+                      "  #{$PROGRAM_NAME} convert hoge.mjlog hoge.mjson\n\n" +
+                      "See here for details:\n" +
+                      "http://gimite.net/pukiwiki/index.php?" +
+                      "Mjai%20%CB%E3%BF%FDAI%C2%D0%C0%EF%A5%B5%A1%BC%A5%D0\n")
                   exit(1)
               end
               

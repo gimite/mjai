@@ -395,7 +395,7 @@ module Mjai
         end
         
         def inspect
-          return "\#<%p:%d>" % [self.class, self.id]
+          return "\#<%p:%p>" % [self.class, self.id]
         end
         
     end

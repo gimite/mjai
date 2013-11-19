@@ -187,6 +187,8 @@ loadAction = (action) ->
       null
     when "dora"
       board.doraMarkers = board.doraMarkers.concat([action.dora_marker])
+    when "error"
+      null
     else
       throw "unknown action: #{action.type}"
   

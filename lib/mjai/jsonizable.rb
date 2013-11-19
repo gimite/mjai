@@ -46,6 +46,9 @@ module Mjai
             when :string
               validate_class(plain, String, name)
               return plain
+            when :string_or_null
+              validate(plain.is_a?(String) || plain == nil, "#{name} must be String or null.")
+              return plain
             when :boolean
               validate(
                   plain.is_a?(TrueClass) || plain.is_a?(FalseClass),
@@ -79,6 +82,8 @@ module Mjai
               return plains_to_objs(plain, :number, name, game)
             when :strings
               return plains_to_objs(plain, :string, name, game)
+            when :strings_or_nulls
+              return plains_to_objs(plain, :string_or_null, name, game)
             when :booleans
               return plains_to_objs(plain, :boolean, name, game)
             when :symbols
@@ -144,7 +149,7 @@ module Mjai
                 plain = obj.map(){ |s, n| [s.to_s(), n] }
               when :actions
                 plain = obj.map(){ |a| a.to_plain() }
-              when :number, :numbers, :string, :strings, :boolean, :booleans
+              when :number, :numbers, :string, :strings, :string_or_null, :strings_or_nulls, :boolean, :booleans
                 plain = obj
               else
                 raise("unknown type")

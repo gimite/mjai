@@ -10,16 +10,20 @@ module Mjai
         def initialize(path)
           super()
           @path = path
-        end
-        
-        attr_reader(:path)
-        
-        def play()
+          @raw_actions = []
           File.foreach(@path) do |line|
-            do_action(Action.from_json(line.chomp(), self))
+            @raw_actions.push(Action.from_json(line.chomp(), self))
           end
         end
         
+        attr_reader(:path, :raw_actions)
+        
+        def play()
+          for action in @raw_actions
+            do_action(action)
+          end
+        end
+
     end
     
 end
