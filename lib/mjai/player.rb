@@ -222,7 +222,7 @@ module Mjai
           if action.type == :dahai &&
               action.actor != self &&
               !self.reach? &&
-              @game.num_pipais >= 4
+              @game.num_pipais > 0
             
             for consumed in get_pais_combinations([action.pai] * 3, @tehais)
               result.push(create_action({
