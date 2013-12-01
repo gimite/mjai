@@ -73,7 +73,7 @@ module Mjai
         end
         
         def make(src_path, dest_path, command)
-          if File.mtime(src_path) > File.mtime(dest_path)
+          if !File.exist?(dest_path) || File.mtime(src_path) > File.mtime(dest_path)
             puts(command)
             if !system(command)
               exit(1)
