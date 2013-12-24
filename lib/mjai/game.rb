@@ -157,6 +157,15 @@ module Mjai
               else
                 return action
               end
+            when :reach
+              if action.actor == player
+                return action.merge({
+                    :cannot_dahai =>
+                        with_response_hint ? (player.tehais.uniq() - player.possible_dahais) : nil,
+                })
+              else
+                return action
+              end
             else
               return action
           end
