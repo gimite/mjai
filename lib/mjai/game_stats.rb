@@ -8,25 +8,26 @@ module Mjai
 
     class GameStats
 
-      YAKU_JA_NAMES = {
-        :menzenchin_tsumoho => "面前清自摸和", :reach => "立直", :ippatsu => "一発",
-        :chankan => "槍槓", :rinshankaiho => "嶺上開花", :haiteiraoyue => "海底摸月",
-        :hoteiraoyui => "河底撈魚", :pinfu => "平和", :tanyaochu => "断么九",
-        :ipeko => "一盃口", :jikaze => "面風牌", :bakaze => "圏風牌",
-        :sangenpai => "三元牌", :double_reach => "ダブル立直", :chitoitsu => "七対子",
-        :honchantaiyao => "混全帯么九", :ikkitsukan => "一気通貫",
-        :sanshokudojun => "三色同順", :sanshokudoko => "三色同刻", :sankantsu => "三槓子",
-        :toitoiho => "対々和", :sananko => "三暗刻", :shosangen => "小三元",
-        :honroto => "混老頭", :ryanpeko => "二盃口", :junchantaiyao => "純全帯么九",
-        :honiso => "混一色", :chiniso => "清一色", :renho => "人和", :tenho => "天和",
-        :chiho => "地和", :daisangen => "大三元", :suanko => "四暗刻",
-        :tsuiso => "字一色", :ryuiso => "緑一色", :chinroto => "清老頭",
-        :churenpoton => "九蓮宝燈", :kokushimuso => "国士無双",
-        :daisushi => "大四喜", :shosushi => "小四喜", :sukantsu => "四槓子",
-        :dora => "ドラ", :uradora => "裏ドラ", :akadora => "赤ドラ",
-      }
+        YAKU_JA_NAMES = {
+          :menzenchin_tsumoho => "面前清自摸和", :reach => "立直", :ippatsu => "一発",
+          :chankan => "槍槓", :rinshankaiho => "嶺上開花", :haiteiraoyue => "海底摸月",
+          :hoteiraoyui => "河底撈魚", :pinfu => "平和", :tanyaochu => "断么九",
+          :ipeko => "一盃口", :jikaze => "面風牌", :bakaze => "圏風牌",
+          :sangenpai => "三元牌", :double_reach => "ダブル立直", :chitoitsu => "七対子",
+          :honchantaiyao => "混全帯么九", :ikkitsukan => "一気通貫",
+          :sanshokudojun => "三色同順", :sanshokudoko => "三色同刻", :sankantsu => "三槓子",
+          :toitoiho => "対々和", :sananko => "三暗刻", :shosangen => "小三元",
+          :honroto => "混老頭", :ryanpeko => "二盃口", :junchantaiyao => "純全帯么九",
+          :honiso => "混一色", :chiniso => "清一色", :renho => "人和", :tenho => "天和",
+          :chiho => "地和", :daisangen => "大三元", :suanko => "四暗刻",
+          :tsuiso => "字一色", :ryuiso => "緑一色", :chinroto => "清老頭",
+          :churenpoton => "九蓮宝燈", :kokushimuso => "国士無双",
+          :daisushi => "大四喜", :shosushi => "小四喜", :sukantsu => "四槓子",
+          :dora => "ドラ", :uradora => "裏ドラ", :akadora => "赤ドラ",
+        }
 
         def self.print(mjson_paths)
+
           num_errors = 0
           name_to_ranks = {}
           name_to_scores = {}
@@ -38,21 +39,24 @@ module Mjai
           name_to_furo_kyoku_count = {}
           name_to_reach_count = {}
           name_to_hora_points = {}
+
           for path in mjson_paths
+
             archive = Archive.load(path)
             first_action = archive.raw_actions[0]
             last_action = archive.raw_actions[-1]
-            archive.do_action(first_action)
-            if last_action.type != :end_game
+            if !last_action || last_action.type != :end_game
               num_errors += 1
               next
             end
+            archive.do_action(first_action)
 
+            scores = last_action.scores
             id_to_name = first_action.names
 
             chicha_id = archive.raw_actions[1].oya.id
             ranked_player_ids =
-                (0...4).sort_by(){ |i| [-last_action.scores[i], (i + 4 - chicha_id) % 4] }
+                (0...4).sort_by(){ |i| [-scores[i], (i + 4 - chicha_id) % 4] }
             for r in 0...4
               name = id_to_name[ranked_player_ids[r]]
               name_to_ranks[name] ||= []
@@ -62,7 +66,7 @@ module Mjai
             for p in 0...4
               name = id_to_name[p]
               name_to_scores[name] ||= []
-              name_to_scores[name].push(last_action.scores[p])
+              name_to_scores[name].push(scores[p])
             end
 
             # Kyoku specific fields.
@@ -209,7 +213,9 @@ module Mjai
               puts("    %s: %d (%.3f/hora)" % [dora_name, count, count.to_f() / hora_count])
             end
           end
+
         end
+        
     end
 
 end
