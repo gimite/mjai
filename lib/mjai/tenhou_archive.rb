@@ -170,7 +170,7 @@ module Mjai
                   })
                   if elem["owari"]
                     do_action({:type => :end_kyoku})
-                    do_action({:type => :end_game})
+                    do_action({:type => :end_game, :scores => points_params[:scores]})
                   end
                   return nil
                 when "RYUUKYOKU"
