@@ -62,7 +62,7 @@ module Mjai
               mota()
               @actor = @players[(@actor.id + 1) % 4]
             end
-            process_ryukyoku()
+            process_fanpai()
           end
           do_action({:type => :end_kyoku})
         end
@@ -77,6 +77,10 @@ module Mjai
             if actions[0].type == :hora
               # actions.size >= 2 in case of double/triple ron
               process_hora(actions)
+              throw(:end_kyoku)
+            elsif actions[0].type == :ryukyoku
+              raise("should not happen") if actions.size != 1
+              process_kyushukyuhai(actions[0].actor)
               throw(:end_kyoku)
             else
               raise("should not happen") if actions.size != 1
@@ -178,7 +182,28 @@ module Mjai
           update_oya(actions.any?(){ |a| a.actor == self.oya }, false)
         end
         
-        def process_ryukyoku()
+        def process_kyushukyuhai(actor)
+          tehais = []
+          for player in players
+            if player == actor
+              tehais.push(player.tehais)
+            else
+              tehais.push([Pai::UNKNOWN] * player.tehais.size)
+            end
+          end
+          do_action({
+              :type => :ryukyoku,
+              :actor => actor,
+              :reason => :kyushukyuhai,
+              :tenpais => [false, false, false, false],
+              :tehais => tehais,
+              :deltas => [0, 0, 0, 0],
+              :scores => players.map(){ |player| player.score }
+          })
+          update_oya(true, true)
+        end
+        
+        def process_fanpai()
           tenpais = []
           tehais = []
           for player in players

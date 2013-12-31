@@ -192,7 +192,14 @@ module Mjai
               @game.get_hora(hora_action, {:previous_action => action}).valid? &&
               (hora_type == :tsumo || !self.furiten?)
         end
-
+        
+        def can_ryukyoku?
+          return @game.current_action.type == :tsumo &&
+              @game.current_action.actor == self &&
+              @game.first_turn? &&
+              @tehais.select(){ |pai| pai.yaochu? }.uniq().size >= 9
+        end
+        
         # Possible actions except for dahai.
         def possible_actions
           action = @game.current_action
@@ -208,6 +215,9 @@ module Mjai
             end
             if can_reach?
               result.push(create_action({:type => :reach}))
+            end
+            if can_ryukyoku?
+              result.push(create_action({:type => :ryukyoku, :reason => :kyushukyuhai}))
             end
           end
           result += self.possible_furo_actions

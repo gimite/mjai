@@ -200,7 +200,7 @@ module Mjai
               when :tsumo
                 if is_actor
                   valid = response &&
-                      [:dahai, :reach, :ankan, :kakan, :hora].include?(response.type)
+                      [:dahai, :reach, :ankan, :kakan, :hora, :ryukyoku].include?(response.type)
                 else
                   valid = !response
                 end
@@ -314,6 +314,11 @@ module Mjai
                     "pai is not previous dahai: %s != %s" % [response.pai, action.pai])
               end
               validate(response.actor.can_hora?, "Cannot hora.")
+            
+            when :ryukyoku
+              validate_fields_exist(response, [:reason])
+              validate(response.reason == :kyushukyuhai, "reason must be kyushukyuhai.")
+              validate(response.actor.can_ryukyoku?, "Cannot ryukyoku.")
             
           end
           
