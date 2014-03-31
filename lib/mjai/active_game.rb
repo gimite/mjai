@@ -23,6 +23,9 @@ module Mjai
         attr_accessor(:game_type)
         
         def play()
+          if ![:one_kyoku, :tonpu, :tonnan].include?(@game_type)
+            raise("Unknown game_type")
+          end
           begin
             do_action({:type => :start_game, :names => self.players.map(){ |pl| pl.name }})
             @ag_oya = @ag_chicha = @players[0]
