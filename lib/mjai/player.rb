@@ -234,13 +234,15 @@ module Mjai
               !self.reach? &&
               @game.num_pipais > 0
             
-            for consumed in get_pais_combinations([action.pai] * 3, @tehais)
-              result.push(create_action({
-                :type => :daiminkan,
-                :pai => action.pai,
-                :consumed => consumed,
-                :target => action.actor
-              }))
+            if @game.can_kan?
+              for consumed in get_pais_combinations([action.pai] * 3, @tehais)
+                result.push(create_action({
+                  :type => :daiminkan,
+                  :pai => action.pai,
+                  :consumed => consumed,
+                  :target => action.actor
+                }))
+              end
             end
             for consumed in get_pais_combinations([action.pai] * 2, @tehais)
               result.push(create_action({
@@ -272,7 +274,8 @@ module Mjai
             
           elsif action.type == :tsumo &&
               action.actor == self &&
-              @game.num_pipais > 0
+              @game.num_pipais > 0 &&
+              @game.can_kan?
             
             for pai in self.tehais.uniq
               same_pais = self.tehais.select(){ |tp| tp.same_symbol?(pai) }

@@ -24,6 +24,10 @@ module Mjai
           @fields = fields
         end
         
+        def kan?
+          return FURO_TYPE_TO_MENTSU_TYPE[self.type] == :kantsu
+        end
+        
         def pais
           return (self.taken ? [self.taken] : []) + self.consumed
         end

@@ -9,7 +9,8 @@ module Mjai
     class ActiveGame < Game
         
         ACTION_PREFERENCES = {
-            :hora => 3,
+            :hora => 4,
+            :ryukyoku => 3,
             :pon => 2,
             :daiminkan => 2,
             :chi => 1,
@@ -78,12 +79,15 @@ module Mjai
           actions = [Action.new({:type => :tsumo, :actor => @actor, :pai => @pipais.pop()})]
           while !actions.empty?
             if actions[0].type == :hora
-              # actions.size >= 2 in case of double/triple ron
-              process_hora(actions)
+              if actions.size >= 3
+                process_ryukyoku(:sanchaho, actions.map(){ |a| a.actor })
+              else
+                process_hora(actions)
+              end
               throw(:end_kyoku)
             elsif actions[0].type == :ryukyoku
               raise("should not happen") if actions.size != 1
-              process_kyushukyuhai(actions[0].actor)
+              process_ryukyoku(:kyushukyuhai, [actions[0].actor])
               throw(:end_kyoku)
             else
               raise("should not happen") if actions.size != 1
@@ -125,8 +129,28 @@ module Mjai
               if [:daiminkan, :kakan].include?(action.type)
                 kandora_pending = true
               end
+              if action.type == :dahai && (next_actions.empty? || next_actions[0].type != :hora)
+                check_ryukyoku()
+              end
               actions = next_actions
             end
+          end
+        end
+        
+        def check_ryukyoku()
+          if players.all?(){ |pl| pl.reach? }
+            process_ryukyoku(:suchareach)
+            throw(:end_kyoku)
+          end
+          if first_turn? && !players[0].sutehais.empty? && players[0].sutehais[0].fonpai? &&
+              players.all?(){ |pl| pl.sutehais == [players[0].sutehais[0]] }
+            process_ryukyoku(:sufonrenta)
+            throw(:end_kyoku)
+          end
+          kan_counts = players.map(){ |pl| pl.furos.count(){ |f| f.kan? } }
+          if kan_counts.inject(0){ |total, n| total + n } == 4 && !kan_counts.include?(4)
+            process_ryukyoku(:sukaikan)
+            throw(:end_kyoku)
           end
         end
         
@@ -185,20 +209,24 @@ module Mjai
           update_oya(actions.any?(){ |a| a.actor == self.oya }, false)
         end
         
-        def process_kyushukyuhai(actor)
+        def process_ryukyoku(reason, actors=[])
+          actor = (reason == :kyushukyuhai) ? actors[0] : nil
+          tenpais = []
           tehais = []
           for player in players
-            if player == actor
+            if reason == :suchareach || actors.include?(player)  # :sanchaho, :kyushukyuhai
+              tenpais.push(reason != :kyushukyuhai)
               tehais.push(player.tehais)
             else
+              tenpais.push(false)
               tehais.push([Pai::UNKNOWN] * player.tehais.size)
             end
           end
           do_action({
               :type => :ryukyoku,
               :actor => actor,
-              :reason => :kyushukyuhai,
-              :tenpais => [false, false, false, false],
+              :reason => reason,
+              :tenpais => tenpais,
               :tehais => tehais,
               :deltas => [0, 0, 0, 0],
               :scores => players.map(){ |player| player.score }

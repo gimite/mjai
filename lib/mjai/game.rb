@@ -373,6 +373,10 @@ module Mjai
           return @first_turn
         end
         
+        def can_kan?
+          return @dora_markers.size < 5
+        end
+        
         def ranked_players
           return @players.sort_by(){ |pl| [-pl.score, distance(pl, @chicha)] }
         end
