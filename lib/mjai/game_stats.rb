@@ -135,7 +135,7 @@ module Mjai
             puts("errors: %d / %d" % [num_errors, mjson_paths.size])
           end
 
-          puts("Ranks:")
+          puts("Average ranks:")
           for name, ranks in name_to_ranks.sort
             rank_conf_interval = ConfidenceInterval.calculate(ranks, :min => 1.0, :max => 4.0)
             puts("  %s: %.3f [%.3f, %.3f]" % [
@@ -145,14 +145,25 @@ module Mjai
                 rank_conf_interval[1],
             ])
           end
+          puts()
 
-          puts("Scores:")
+          puts("Rank distributions:")
+          for name, ranks in name_to_ranks.sort
+            puts("  %s: %s" % [
+                name,
+                (1..4).map(){ |i| "[%d] %d" % [i, ranks.count(i)] }.join("  "),
+            ])
+          end
+          puts()
+
+          puts("Average scores:")
           for name, scores in name_to_scores.sort
             puts("  %s: %d" % [
                 name,
                 scores.inject(0, :+).to_i() / scores.size,
             ])
           end
+          puts()
 
           puts("Hora rates:")
           for name, hora_count in name_to_hora_count.sort
@@ -161,6 +172,7 @@ module Mjai
                 100.0 * hora_count / name_to_kyoku_count[name]
             ])
           end
+          puts()
 
           puts("Hoju rates:")
           for name, hoju_count in name_to_hoju_count.sort
@@ -169,6 +181,7 @@ module Mjai
                 100.0 * hoju_count / name_to_kyoku_count[name]
             ])
           end
+          puts()
 
           puts("Furo rates:")
           for name, furo_kyoku_count in name_to_furo_kyoku_count.sort
@@ -177,6 +190,7 @@ module Mjai
                 100.0 * furo_kyoku_count / name_to_kyoku_count[name]
             ])
           end
+          puts()
 
           puts("Reach rates:")
           for name, reach_count in name_to_reach_count.sort
@@ -185,6 +199,7 @@ module Mjai
                 100.0 * reach_count / name_to_kyoku_count[name]
             ])
           end
+          puts()
 
           puts("Average hora points:")
           for name, hora_points in name_to_hora_points.sort
@@ -193,6 +208,7 @@ module Mjai
                 hora_points.inject(0, :+).to_i() / hora_points.size,
             ])
           end
+          puts()
 
           puts("Yaku stats:")
           for name, yaku_stats in name_to_yaku_stats.sort
@@ -203,6 +219,7 @@ module Mjai
               puts("    %s: %d (%.1f%%)" % [yaku_name, count, 100.0 * count / hora_count])
             end
           end
+          puts()
 
           puts("Dora stats:")
           for name, dora_stats in name_to_dora_stats.sort
@@ -213,6 +230,7 @@ module Mjai
               puts("    %s: %d (%.3f/hora)" % [dora_name, count, count.to_f() / hora_count])
             end
           end
+          puts()
 
         end
         

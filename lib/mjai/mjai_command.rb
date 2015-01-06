@@ -22,8 +22,10 @@ module Mjai
               action = argv.shift()
               opts = OptionParser.getopts(argv, "",
                   "port:11600", "host:127.0.0.1", "room:default", "game_type:one_kyoku",
-                  "games:auto", "repeat", "log_dir:")
+                  "games:auto", "repeat", "log_dir:", "output_type:")
+
               case action
+
                 when "server"
                   $stdout.sync = true
                   player_commands = argv
@@ -49,10 +51,20 @@ module Mjai
                       :log_dir => opts["log_dir"],
                   })
                   server.run()
+
                 when "convert"
-                  FileConverter.new().convert(argv.shift(), argv.shift())
+                  conv = FileConverter.new()
+                  if opts["output_type"]
+                    for path in argv
+                      conv.convert(path, "%s.%s" % [path, opts["output_type"]])
+                    end
+                  else
+                    conv.convert(argv.shift(), argv.shift())
+                  end
+
                 when "stats"
                   GameStats.print(argv)
+
                 else
                   $stderr.puts(
                       "Basic Usage:\n" +
@@ -75,6 +87,7 @@ module Mjai
                       "http://gimite.net/pukiwiki/index.php?" +
                       "Mjai%20%CB%E3%BF%FDAI%C2%D0%C0%EF%A5%B5%A1%BC%A5%D0\n")
                   exit(1)
+                  
               end
               
             when /^mjai-(.+)$/
