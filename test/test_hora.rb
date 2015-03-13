@@ -367,17 +367,35 @@ class TC_Hora < Test::Unit::TestCase
     
     def test_fu()
 
-      assert_equal(new_hora({
+      assert_equal(30, new_hora({
         :tehais => Pai.parse_pais("234678m345p3477s"),
         :taken => Pai.new("5s"),
         :hora_type => :ron,
-      }).fu, 30)
+      }).fu)
 
-      assert_equal(new_hora({
+      assert_equal(20, new_hora({
         :tehais => Pai.parse_pais("234678m345p3477s"),
         :taken => Pai.new("5s"),
         :hora_type => :tsumo,
-      }).fu, 20)
+      }).fu)
+
+      assert_equal(30, new_hora({
+        :tehais => Pai.parse_pais("234678m3477s"),
+        :furos => [
+          Furo.new({:type => :chi, :taken => Pai.new("2p"), :consumed => Pai.parse_pais("34p")})
+        ],
+        :taken => Pai.new("5s"),
+        :hora_type => :ron,
+      }).fu)
+
+      assert_equal(30, new_hora({
+        :tehais => Pai.parse_pais("234678m3477s"),
+        :furos => [
+          Furo.new({:type => :chi, :taken => Pai.new("2p"), :consumed => Pai.parse_pais("34p")})
+        ],
+        :taken => Pai.new("5s"),
+        :hora_type => :tsumo,
+      }).fu)
 
     end
     
