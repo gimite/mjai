@@ -30,15 +30,20 @@ module Mjai
         
         def dump_archive(archive_path, output_path, output_format)
           archive = Archive.load(archive_path)
-          open(output_path, "w") do |f|
-            archive.on_action() do |action|
-              if output_format == :human
-                archive.dump_action(action, f)
-              else
-                f.puts(action.to_json())
+          begin
+            open(output_path, "w") do |f|
+              archive.on_action() do |action|
+                if output_format == :human
+                  archive.dump_action(action, f)
+                else
+                  f.puts(action.to_json())
+                end
               end
+              archive.play()
             end
-            archive.play()
+          rescue Archive::UnsupportedArchiveError => ex
+            FileUtils.rm(output_path)
+            $stderr.puts("Skipping unsupported file %s (%s)" % [archive_path, ex.message])
           end
         end
         

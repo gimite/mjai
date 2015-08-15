@@ -36,13 +36,19 @@ module Mjai
             def on_tenhou_event(elem, next_elem = nil)
               verify_tenhou_tehais() if @first_kyoku_started
               case elem.name
-                when "SHUFFLE", "GO", "BYE"
+                when "GO"
+                  if elem["type"].to_i & 16 != 0  # Sanma.
+                    raise(Archive::UnsupportedArchiveError, "Sanma is not supported.")
+                  end
+                when "SHUFFLE", "BYE"
                   # BYE: log out
                   return nil
                 when "UN"
-                  escaped_names = (0...4).map(){ |i| elem["n%d" % i] }
-                  return :broken if escaped_names.index(nil)  # Something is wrong.
-                  @names = escaped_names.map(){ |s| URI.decode(s) }
+                  if !@names  # Somehow there can be multiple UN's.
+                    escaped_names = (0...4).map(){ |i| elem["n%d" % i] }
+                    return :broken if escaped_names.index(nil)  # Something is wrong.
+                    @names = escaped_names.map(){ |s| URI.decode(s) }
+                  end
                   return nil
                 when "TAIKYOKU"
                   oya = elem["oya"].to_i()
@@ -442,6 +448,7 @@ module Mjai
           elems.each_with_index() do |elem, j|
             begin
               if on_tenhou_event(elem, elems[j + 1]) == :broken
+                raise("Something is wrong")
                 break  # Something is wrong.
               end
             rescue

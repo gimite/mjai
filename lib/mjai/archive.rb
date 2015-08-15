@@ -8,6 +8,9 @@ module Mjai
     
     class Archive < Game
         
+        class UnsupportedArchiveError < StandardError
+        end
+        
         def self.load(path)
           case File.extname(path)
             when ".mjlog"
