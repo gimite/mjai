@@ -55,8 +55,15 @@ module Mjai
                 when "convert"
                   conv = FileConverter.new()
                   if opts["output_type"]
-                    for path in argv
-                      conv.convert(path, "%s.%s" % [path, opts["output_type"]])
+                    for pattern in argv
+                      paths = Dir[pattern]
+                      if paths.empty?
+                        $stderr.puts("No match: %s" % pattern)
+                        exit(1)
+                      end
+                      for path in paths
+                        conv.convert(path, "%s.%s" % [path, opts["output_type"]])
+                      end
                     end
                   else
                     conv.convert(argv.shift(), argv.shift())
