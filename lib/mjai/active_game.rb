@@ -319,7 +319,7 @@ module Mjai
           end
         end
         
-        def decide_last(last_bakaze, tenpai_renchan)
+        def decide_last(last_bakaze, renchan)
           if @players.any? { |pl| pl.score < 0 }
             return true
           end
@@ -327,15 +327,16 @@ module Mjai
           if @ag_bakaze == last_bakaze.succ.succ
             return true
           end
-          if @ag_bakaze == last_bakaze.succ
-            return @players.any? { |pl| pl.score >= 30000 }
-          end
-
-          # Agari-yame, tenpai-yame
-          if @ag_bakaze == last_bakaze && @ag_oya == @players[3] &&
-              tenpai_renchan && @players[3].score >= 30000 &&
-              (0..2).all? { |i| @players[i].score < @players[3].score }
-            return true
+          
+          if renchan
+            if (@ag_bakaze == last_bakaze.succ) || (@ag_bakaze == last_bakaze && @ag_oya == @players[3]) #オーラス
+              return @ag_oya.score >= 30000 &&
+                (0...4).all? { |i| @ag_oya.id == i || @ag_oya.score > @players[i].score }
+            end
+          else
+            if @ag_bakaze == last_bakaze.succ #オーラス
+              return @players.any? { |pl| pl.score >= 30000 }
+            end
           end
 
           return false
