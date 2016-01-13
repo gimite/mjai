@@ -170,8 +170,12 @@ module Mjai
         
         def process_hora(actions)
           tsumibo = self.honba
+          ura = nil
           for action in actions.sort_by(){ |a| distance(a.actor, a.target) }
-            uradora_markers = action.actor.reach? ? @wanpais.pop(self.dora_markers.size) : []
+            if action.actor.reach? && !ura
+              ura = @wanpais.pop(self.dora_markers.size)
+            end
+            uradora_markers = action.actor.reach? ? ura : []
             hora = get_hora(action, {
                 :uradora_markers => uradora_markers,
                 :previous_action => self.previous_action,
