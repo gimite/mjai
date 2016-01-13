@@ -44,7 +44,7 @@ module Mjai
         def update_state(action)
           
           if @game.previous_action &&
-              @game.previous_action.type == :dahai &&
+              [:dahai, :kakan].include?(@game.previous_action.type) &&
               @game.previous_action.actor != self &&
               action.type != :hora
             @extra_anpais.push(@game.previous_action.pai)
@@ -77,8 +77,14 @@ module Mjai
               @double_reach = false
               @ippatsu_chance = false
               @rinshan = false
-            when :chi, :pon, :daiminkan, :kakan, :ankan
+            when :chi, :pon, :daiminkan, :ankan
               @ippatsu_chance = false
+            when :tsumo
+              # - 純正巡消しは発声＆和了打診後（加槓のみ)、嶺上ツモの前（連続する加槓の２回目には一発は付かない）
+              if @game.previous_action &&
+               @game.previous_action.type == :kakan
+                 @ippatsu_chance = false
+              end
           end
           
           if action.actor == self

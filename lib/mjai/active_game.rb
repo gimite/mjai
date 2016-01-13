@@ -94,6 +94,7 @@ module Mjai
               action = actions[0]
               responses = do_action(action)
               next_actions = nil
+              next_actions ||= choose_actions(responses)
               case action.type
                 when :daiminkan, :kakan, :ankan
                   if action.type == :ankan
@@ -101,13 +102,16 @@ module Mjai
                   end
                   # Actually takes one from wanpai and moves one pai from pipai to wanpai,
                   # but it's equivalent to taking from pipai.
-                  next_actions =
-                    [Action.new({:type => :tsumo, :actor => action.actor, :pai => @pipais.pop()})]
+                  if next_actions.empty?
+                    next_actions =
+                      [Action.new({:type => :tsumo, :actor => action.actor, :pai => @pipais.pop()})]
+                  else
+                    raise("should not happen") if next_actions[0].type != :hora
+                  end
                   # TODO Handle 4 kans.
                 when :reach
                   reach_pending = true
               end
-              next_actions ||= choose_actions(responses)
               if reach_pending &&
                   (next_actions.empty? || ![:dahai, :hora].include?(next_actions[0].type))
                 @ag_kyotaku += 1
@@ -126,7 +130,7 @@ module Mjai
                 add_dora()
                 kandora_pending = false
               end
-              if [:daiminkan, :kakan].include?(action.type)
+              if [:daiminkan, :kakan].include?(action.type) && ![:hora].include?(next_actions[0].type)
                 kandora_pending = true
               end
               if action.type == :dahai && (next_actions.empty? || next_actions[0].type != :hora)
