@@ -245,7 +245,25 @@ module Mjai
         def process_fanpai()
           tenpais = []
           tehais = []
+          
+          is_nagashi = false
+          nagashi_deltas = [0,0,0,0]
+          
           for player in players
+            #流し満貫の判定
+            if player.sutehais.size == player.ho.size && #鳴かれておらず
+             player.sutehais.all?{ |p| p.yaochu? }
+              is_nagashi = true
+              if player == self.oya
+                nagashi_deltas = nagashi_deltas.map{|i| i - 4000}
+                nagashi_deltas[player.id] += (4000 + 12000)
+              else
+                nagashi_deltas = nagashi_deltas.map{|i| i - 2000}
+                nagashi_deltas[player.id] += (2000 + 8000)
+                nagashi_deltas[self.oya.id] -= 2000
+              end
+            end
+            
             if player.tenpai?
               tenpais.push(true)
               tehais.push(player.tehais)
@@ -256,18 +274,23 @@ module Mjai
           end
           tenpai_ids = (0...4).select(){ |i| tenpais[i] }
           noten_ids = (0...4).select(){ |i| !tenpais[i] }
-          deltas = [0, 0, 0, 0]
-          if (1..3).include?(tenpai_ids.size)
-            for id in tenpai_ids
-              deltas[id] += 3000 / tenpai_ids.size
-            end
-            for id in noten_ids
-              deltas[id] -= 3000 / noten_ids.size
+          
+          if is_nagashi
+            deltas = nagashi_deltas
+          else
+            deltas = [0, 0, 0, 0]
+            if (1..3).include?(tenpai_ids.size)
+              for id in tenpai_ids
+                deltas[id] += 3000 / tenpai_ids.size
+              end
+              for id in noten_ids
+                deltas[id] -= 3000 / noten_ids.size
+              end
             end
           end
           do_action({
               :type => :ryukyoku,
-              :reason => :fanpai,
+              :reason => is_nagashi ? :nagashimangan : :fanpai,
               :tenpais => tenpais,
               :tehais => tehais,
               :deltas => deltas,
