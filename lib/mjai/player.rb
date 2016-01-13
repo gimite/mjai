@@ -93,6 +93,7 @@ module Mjai
           if action.actor == self
             case action.type
               when :tsumo
+                @tehais.sort!()
                 @tehais.push(action.pai)
               when :dahai
                 delete_tehai(action.pai)
