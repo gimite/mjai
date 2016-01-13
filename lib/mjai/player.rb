@@ -294,7 +294,7 @@ module Mjai
               @game.num_pipais > 0 &&
               @game.can_kan?
             
-            for pai in self.tehais.uniq
+            for pai in self.tehais.map(){ |tp| tp.remove_red() }.uniq
               same_pais = self.tehais.select(){ |tp| tp.same_symbol?(pai) }
               if same_pais.size >= 4
                 if self.reach?
