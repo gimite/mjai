@@ -168,7 +168,7 @@ module Mjai
           return @game.current_action.type == :tsumo &&
               @game.current_action.actor == self &&
               shanten_analysis.shanten <= 0 &&
-              @furos.empty? &&
+              @furos.all?{|f| f.type == :ankan} &&
               !self.reach? &&
               self.game.num_pipais >= 4 &&
               @score >= 1000
