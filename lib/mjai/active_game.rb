@@ -253,7 +253,7 @@ module Mjai
               :deltas => [0, 0, 0, 0],
               :scores => players.map(){ |player| player.score }
           })
-          update_oya(true, true)
+          update_oya(true, reason)
         end
         
         def process_fanpai()
@@ -302,44 +302,50 @@ module Mjai
               end
             end
           end
+          
+          reason = is_nagashi ? :nagashimangan : :fanpai
           do_action({
               :type => :ryukyoku,
-              :reason => is_nagashi ? :nagashimangan : :fanpai,
+              :reason => reason,
               :tenpais => tenpais,
               :tehais => tehais,
               :deltas => deltas,
               :scores => get_scores(deltas),
           })
-          update_oya(tenpais[self.oya.id], true)
+          update_oya(tenpais[self.oya.id], reason)
         end
         
-        def update_oya(renchan, ryukyoku)
+        def update_oya(renchan, ryukyoku_reason)
           if renchan
             @ag_oya = self.oya
           else
             @ag_oya = @players[(self.oya.id + 1) % 4]
             @ag_bakaze = @ag_bakaze.succ if @ag_oya == @players[0]
           end
-          if renchan || ryukyoku
+          if renchan || ryukyoku_reason
             @ag_honba += 1
           else
             @ag_honba = 0
           end
           case @game_type
             when :tonpu
-              @last = decide_last(Pai.new("E"), renchan)
+              @last = decide_last(Pai.new("E"), renchan, ryukyoku_reason)
             when :tonnan
-              @last = decide_last(Pai.new("S"), renchan)
+              @last = decide_last(Pai.new("S"), renchan, ryukyoku_reason)
           end
         end
         
-        def decide_last(last_bakaze, renchan)
+        def decide_last(last_bakaze, renchan, ryukyoku_reason)
           if @players.any? { |pl| pl.score < 0 }
             return true
           end
 
           if @ag_bakaze == last_bakaze.succ.succ
             return true
+          end
+          
+          if ryukyoku_reason && ![:fanpai, :nagashimangan].include?(ryukyoku_reason)
+            return false
           end
           
           if renchan
