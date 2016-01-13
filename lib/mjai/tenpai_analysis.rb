@@ -14,12 +14,14 @@ module Mjai
         end
         
         def tenpai?
-          return @shanten.shanten == 0
+          return @shanten.shanten == 0 &&
+              # 打牌選択可能な手牌で待ちを使いきっている場合を除外
+              ( @pais.size % 3 != 1 || self.waited_pais.any?{ |w| @pais.select{ |t| t.remove_red == w }.size < 4 } )
         end
         
         def waited_pais
           raise(ArgumentError, "invalid number of pais") if @pais.size % 3 != 1
-          raise("not tenpai") if !self.tenpai?
+          raise("not tenpai") if @shanten.shanten != 0
           pai_set = Hash.new(0)
           for pai in @pais
             pai_set[pai.remove_red()] += 1
