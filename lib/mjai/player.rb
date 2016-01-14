@@ -295,9 +295,9 @@ module Mjai
               @game.num_pipais > 0 &&
               @game.can_kan?
             
-            for pai in self.tehais.map(){ |tp| tp.remove_red() }.uniq
+            for pai in self.tehais.uniq
               same_pais = self.tehais.select(){ |tp| tp.same_symbol?(pai) }
-              if same_pais.size >= 4
+              if same_pais.size >= 4 && !pai.red?
                 if self.reach?
                   orig_tenpai = TenpaiAnalysis.new(self.tehais[0...-1])
                   new_tenpai = TenpaiAnalysis.new(
