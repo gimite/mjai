@@ -23,6 +23,12 @@ class TC_TenpaiAnalysis < Test::Unit::TestCase
       
       assert(!TenpaiAnalysis.new(Pai.parse_pais("12m45p789sNNNFFPC")).tenpai?)
       
+      assert(TenpaiAnalysis.new(Pai.parse_pais("2222333344p")).tenpai?)
+      assert(!TenpaiAnalysis.new(Pai.parse_pais("FFFF")).tenpai?)
+      assert(!TenpaiAnalysis.new(Pai.parse_pais("555s5sr")).tenpai?)
+      assert(!TenpaiAnalysis.new(Pai.parse_pais("12m45p789sNNNFFPC")).tenpai?)
+      assert(!TenpaiAnalysis.new(Pai.parse_pais("2m5m3p4p7p4s9s")).tenpai?)
+      
     end
     
     def test_waited_pais()

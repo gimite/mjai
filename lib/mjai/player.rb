@@ -16,6 +16,7 @@ module Mjai
         attr_reader(:extra_anpais)  # sutehais以外のこのプレーヤに対する安牌
         attr_reader(:reach_state)
         attr_reader(:reach_ho_index)
+        attr_reader(:pao_for_id)
         attr_reader(:attributes)
         attr_accessor(:name)
         attr_accessor(:game)
@@ -44,7 +45,7 @@ module Mjai
         def update_state(action)
           
           if @game.previous_action &&
-              @game.previous_action.type == :dahai &&
+              [:dahai, :kakan].include?(@game.previous_action.type) &&
               @game.previous_action.actor != self &&
               action.type != :hora
             @extra_anpais.push(@game.previous_action.pai)
@@ -65,6 +66,7 @@ module Mjai
               @reach_ho_index = nil
               @double_reach = false
               @ippatsu_chance = false
+              @pao_for_id = nil
               @rinshan = false
             when :start_kyoku
               @tehais = action.tehais[self.id]
@@ -76,14 +78,22 @@ module Mjai
               @reach_ho_index = nil
               @double_reach = false
               @ippatsu_chance = false
+              @pao_for_id = nil
               @rinshan = false
-            when :chi, :pon, :daiminkan, :kakan, :ankan
+            when :chi, :pon, :daiminkan, :ankan
               @ippatsu_chance = false
+            when :tsumo
+              # - 純正巡消しは発声＆和了打診後（加槓のみ)、嶺上ツモの前（連続する加槓の２回目には一発は付かない）
+              if @game.previous_action &&
+               @game.previous_action.type == :kakan
+                 @ippatsu_chance = false
+              end
           end
           
           if action.actor == self
             case action.type
               when :tsumo
+                @tehais.sort!()
                 @tehais.push(action.pai)
               when :dahai
                 delete_tehai(action.pai)
@@ -105,6 +115,14 @@ module Mjai
                 }))
                 if [:daiminkan, :ankan].include?(action.type)
                   @rinshan = true
+                end
+                
+                # 包
+                if [:daiminkan, :pon].include?(action.type)
+                  if (action.pai.sangenpai? && @furos.select{|f| f.pais[0].sangenpai?}.size == 3) ||
+                     (action.pai.fonpai?    && @furos.select{|f| f.pais[0].fonpai?   }.size == 4)
+                       @pao_for_id = action.target.id
+                  end
                 end
               when :kakan
                 delete_tehai(action.pai)
@@ -168,7 +186,7 @@ module Mjai
           return @game.current_action.type == :tsumo &&
               @game.current_action.actor == self &&
               shanten_analysis.shanten <= 0 &&
-              @furos.empty? &&
+              @furos.all?{|f| f.type == :ankan} &&
               !self.reach? &&
               self.game.num_pipais >= 4 &&
               @score >= 1000
@@ -279,7 +297,7 @@ module Mjai
             
             for pai in self.tehais.uniq
               same_pais = self.tehais.select(){ |tp| tp.same_symbol?(pai) }
-              if same_pais.size >= 4
+              if same_pais.size >= 4 && !pai.red?
                 if self.reach?
                   orig_tenpai = TenpaiAnalysis.new(self.tehais[0...-1])
                   new_tenpai = TenpaiAnalysis.new(

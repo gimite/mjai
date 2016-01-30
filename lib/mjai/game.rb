@@ -363,7 +363,7 @@ module Mjai
             :double_reach => action.actor.double_reach?,
             :ippatsu => action.actor.ippatsu_chance?,
             :rinshan => action.actor.rinshan?,
-            :haitei => self.num_pipais == 0,
+            :haitei => (self.num_pipais == 0 && !action.actor.rinshan?),
             :first_turn => @first_turn,
             :chankan => params[:previous_action].type == :kakan,
           })

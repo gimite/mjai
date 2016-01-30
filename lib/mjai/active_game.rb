@@ -94,6 +94,7 @@ module Mjai
               action = actions[0]
               responses = do_action(action)
               next_actions = nil
+              next_actions ||= choose_actions(responses)
               case action.type
                 when :daiminkan, :kakan, :ankan
                   if action.type == :ankan
@@ -101,13 +102,16 @@ module Mjai
                   end
                   # Actually takes one from wanpai and moves one pai from pipai to wanpai,
                   # but it's equivalent to taking from pipai.
-                  next_actions =
-                    [Action.new({:type => :tsumo, :actor => action.actor, :pai => @pipais.pop()})]
+                  if next_actions.empty?
+                    next_actions =
+                      [Action.new({:type => :tsumo, :actor => action.actor, :pai => @pipais.pop()})]
+                  else
+                    raise("should not happen") if next_actions[0].type != :hora
+                  end
                   # TODO Handle 4 kans.
                 when :reach
                   reach_pending = true
               end
-              next_actions ||= choose_actions(responses)
               if reach_pending &&
                   (next_actions.empty? || ![:dahai, :hora].include?(next_actions[0].type))
                 @ag_kyotaku += 1
@@ -126,7 +130,7 @@ module Mjai
                 add_dora()
                 kandora_pending = false
               end
-              if [:daiminkan, :kakan].include?(action.type)
+              if [:daiminkan, :kakan].include?(action.type) && ![:hora].include?(next_actions[0].type)
                 kandora_pending = true
               end
               if action.type == :dahai && (next_actions.empty? || next_actions[0].type != :hora)
@@ -170,8 +174,12 @@ module Mjai
         
         def process_hora(actions)
           tsumibo = self.honba
+          ura = nil
           for action in actions.sort_by(){ |a| distance(a.actor, a.target) }
-            uradora_markers = action.actor.reach? ? @wanpais.pop(self.dora_markers.size) : []
+            if action.actor.reach? && !ura
+              ura = @wanpais.pop(self.dora_markers.size)
+            end
+            uradora_markers = action.actor.reach? ? ura : []
             hora = get_hora(action, {
                 :uradora_markers => uradora_markers,
                 :previous_action => self.previous_action,
@@ -179,14 +187,28 @@ module Mjai
             raise("no yaku") if !hora.valid?
             deltas = [0, 0, 0, 0]
             deltas[action.actor.id] += hora.points + tsumibo * 300 + @ag_kyotaku * 1000
+            
+            pao_id = action.actor.pao_for_id
             if hora.hora_type == :tsumo
-              for player in self.players
-                next if player == action.actor
-                deltas[player.id] -=
-                    ((player == self.oya ? hora.oya_payment : hora.ko_payment) + tsumibo * 100)
+              if pao_id != nil
+                deltas[pao_id] -= (hora.points + tsumibo * 300)
+              else
+                for player in self.players
+                  next if player == action.actor
+                  deltas[player.id] -=
+                      ((player == self.oya ? hora.oya_payment : hora.ko_payment) + tsumibo * 100)
+                end
               end
             else
-              deltas[action.target.id] -= (hora.points + tsumibo * 300)
+              if pao_id == action.target.id
+                pao_id = nil
+              end
+              if pao_id != nil
+                deltas[pao_id] -= (hora.points/2 + tsumibo * 300)
+                deltas[action.target.id] -= (hora.points/2)
+              else
+                deltas[action.target.id] -= (hora.points + tsumibo * 300)
+              end
             end
             do_action({
               :type => action.type,
@@ -201,7 +223,7 @@ module Mjai
               :hora_points => hora.points,
               :deltas => deltas,
               :scores => get_scores(deltas),
-            })
+            }.merge( pao_id!=nil ? {:pao=> self.players[pao_id]} : {} ) )
             # Only kamicha takes them in case of daburon.
             tsumibo = 0
             @ag_kyotaku = 0
@@ -231,13 +253,31 @@ module Mjai
               :deltas => [0, 0, 0, 0],
               :scores => players.map(){ |player| player.score }
           })
-          update_oya(true, true)
+          update_oya(true, reason)
         end
         
         def process_fanpai()
           tenpais = []
           tehais = []
+          
+          is_nagashi = false
+          nagashi_deltas = [0,0,0,0]
+          
           for player in players
+            #流し満貫の判定
+            if player.sutehais.size == player.ho.size && #鳴かれておらず
+             player.sutehais.all?{ |p| p.yaochu? }
+              is_nagashi = true
+              if player == self.oya
+                nagashi_deltas = nagashi_deltas.map{|i| i - 4000}
+                nagashi_deltas[player.id] += (4000 + 12000)
+              else
+                nagashi_deltas = nagashi_deltas.map{|i| i - 2000}
+                nagashi_deltas[player.id] += (2000 + 8000)
+                nagashi_deltas[self.oya.id] -= 2000
+              end
+            end
+            
             if player.tenpai?
               tenpais.push(true)
               tehais.push(player.tehais)
@@ -248,47 +288,54 @@ module Mjai
           end
           tenpai_ids = (0...4).select(){ |i| tenpais[i] }
           noten_ids = (0...4).select(){ |i| !tenpais[i] }
-          deltas = [0, 0, 0, 0]
-          if (1..3).include?(tenpai_ids.size)
-            for id in tenpai_ids
-              deltas[id] += 3000 / tenpai_ids.size
-            end
-            for id in noten_ids
-              deltas[id] -= 3000 / noten_ids.size
+          
+          if is_nagashi
+            deltas = nagashi_deltas
+          else
+            deltas = [0, 0, 0, 0]
+            if (1..3).include?(tenpai_ids.size)
+              for id in tenpai_ids
+                deltas[id] += 3000 / tenpai_ids.size
+              end
+              for id in noten_ids
+                deltas[id] -= 3000 / noten_ids.size
+              end
             end
           end
+          
+          reason = is_nagashi ? :nagashimangan : :fanpai
           do_action({
               :type => :ryukyoku,
-              :reason => :fanpai,
+              :reason => reason,
               :tenpais => tenpais,
               :tehais => tehais,
               :deltas => deltas,
               :scores => get_scores(deltas),
           })
-          update_oya(tenpais[self.oya.id], true)
+          update_oya(tenpais[self.oya.id], reason)
         end
         
-        def update_oya(renchan, ryukyoku)
+        def update_oya(renchan, ryukyoku_reason)
           if renchan
             @ag_oya = self.oya
           else
             @ag_oya = @players[(self.oya.id + 1) % 4]
             @ag_bakaze = @ag_bakaze.succ if @ag_oya == @players[0]
           end
-          if renchan || ryukyoku
+          if renchan || ryukyoku_reason
             @ag_honba += 1
           else
             @ag_honba = 0
           end
           case @game_type
             when :tonpu
-              @last = decide_last(Pai.new("E"), renchan)
+              @last = decide_last(Pai.new("E"), renchan, ryukyoku_reason)
             when :tonnan
-              @last = decide_last(Pai.new("S"), renchan)
+              @last = decide_last(Pai.new("S"), renchan, ryukyoku_reason)
           end
         end
         
-        def decide_last(last_bakaze, tenpai_renchan)
+        def decide_last(last_bakaze, renchan, ryukyoku_reason)
           if @players.any? { |pl| pl.score < 0 }
             return true
           end
@@ -296,15 +343,20 @@ module Mjai
           if @ag_bakaze == last_bakaze.succ.succ
             return true
           end
-          if @ag_bakaze == last_bakaze.succ
-            return @players.any? { |pl| pl.score >= 30000 }
+          
+          if ryukyoku_reason && ![:fanpai, :nagashimangan].include?(ryukyoku_reason)
+            return false
           end
-
-          # Agari-yame, tenpai-yame
-          if @ag_bakaze == last_bakaze && @ag_oya == @players[3] &&
-              tenpai_renchan && @players[3].score >= 30000 &&
-              (0..2).all? { |i| @players[i].score < @players[3].score }
-            return true
+          
+          if renchan
+            if (@ag_bakaze == last_bakaze.succ) || (@ag_bakaze == last_bakaze && @ag_oya == @players[3]) #オーラス
+              return @ag_oya.score >= 30000 &&
+                (0...4).all? { |i| @ag_oya.id == i || @ag_oya.score > @players[i].score }
+            end
+          else
+            if @ag_bakaze == last_bakaze.succ #オーラス
+              return @players.any? { |pl| pl.score >= 30000 }
+            end
           end
 
           return false

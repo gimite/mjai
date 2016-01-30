@@ -159,6 +159,8 @@ module Mjai
                         map(){ |y, f| [YAKU_ID_TO_NAME[y.to_i()], f.to_i()] }.
                         select(){ |y, f| f != 0 }
                   end
+                  
+                  pao = elem["paoWho"]
 
                   do_action({
                     :type => :hora,
@@ -173,7 +175,7 @@ module Mjai
                     :hora_points => hora_points,
                     :deltas => points_params[:deltas],
                     :scores => points_params[:scores],
-                  })
+                  }.merge( pao!=nil ? {:pao=> self.players[pao.to_i()]} : {} ) )
                   if elem["owari"]
                     do_action({:type => :end_kyoku})
                     do_action({:type => :end_game, :scores => points_params[:scores]})

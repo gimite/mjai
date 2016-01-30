@@ -10,6 +10,7 @@ module Mjai
           [:reason, :symbol],
           [:actor, :player],
           [:target, :player],
+          [:pao, :player],
           [:pai, :pai],
           [:consumed, :pais],
           [:pais, :pais],
