@@ -1,5 +1,5 @@
 .idea
-.virtualbox
+.vagrant
 exp
 mjlog
 tmp
