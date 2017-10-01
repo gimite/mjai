@@ -1,3 +1,5 @@
+.idea
+.virtualbox
 exp
 mjlog
 tmp
@@ -6,3 +8,4 @@ resource
 Gemfile.lock
 *.gem
 nohup.out
+doc/external/*
