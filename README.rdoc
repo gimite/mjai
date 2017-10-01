@@ -10,3 +10,9 @@ The license of this source is "New BSD Licence"
 = Author
 
 Hiroshi Ichikawa - http://gimite.net/en/index.php?Contact
+
+= How to run with Vagrant
+
+1. vagrant up
+2. vagrant ssh
+3. mjai server --port=11600 --game_type=one_kyoku --room=default --log_dir=./log mjai-shanten mjai-shanten mjai-shanten
