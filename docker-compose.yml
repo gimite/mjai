@@ -1,0 +1,13 @@
+version: '3'
+services:
+  mjai:
+    image: mjai
+    container_name: mjai
+    restart: always
+    build: .
+    volumes:
+      - ./log:/mjai/log
+    ports:
+      - 11600:11600
+    command: ['mjai','server','--port=11600','--game_type=one_kyoku','--room=default','--log_dir=/mjai/log','mjai-shanten','mjai-shanten','mjai-shanten']
+
